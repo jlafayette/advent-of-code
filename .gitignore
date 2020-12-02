@@ -11,6 +11,7 @@ venv/
 
 # Editor files
 .vscode/
+.idea/
 
 # pyenv
 .python-version
