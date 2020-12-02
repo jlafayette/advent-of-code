@@ -1,0 +1,16 @@
+# MacOS
+.DS_Store
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+venv/
+
+# Editor files
+.vscode/
+
+# pyenv
+.python-version
