@@ -27,6 +27,9 @@ In your expense report, what is the product of the three entries that sum to
 2020?
 
 """
+import itertools
+import operator
+from functools import reduce
 from pathlib import Path
 from typing import Optional, List
 
@@ -36,9 +39,9 @@ def main() -> None:
     entries = get_entries()
 
     # find product of entries that sum to 2020
-    result2 = product_of_2_entries(entries)
+    result2 = product_of_entries(entries, 2)
     print(result2)
-    result3 = product_of_3_entries(entries)
+    result3 = product_of_entries(entries, 3)
     print(result3)
 
 
@@ -50,28 +53,13 @@ def get_entries() -> List[int]:
     return entries
 
 
-def product_of_2_entries(entries: List[int]) -> Optional[int]:
-    for index1, entry1 in enumerate(entries):
-        for index2, entry2 in enumerate(entries):
-            if index1 == index2:
-                continue
-            if entry1 + entry2 == 2020:
-                return entry1 * entry2
-    else:
-        return None
+def product_of_entries(entries: List[int], number: int) -> Optional[int]:
 
-
-def product_of_3_entries(entries: List[int]) -> Optional[int]:
-    for index1, entry1 in enumerate(entries):
-        for index2, entry2 in enumerate(entries):
-            for index3, entry3 in enumerate(entries):
-                # make sure we aren't comparing the same entry
-                if len({index1, index2, index3}) != 3:
-                    continue
-                if entry1 + entry2 + entry3 == 2020:
-                    return entry1 * entry2 * entry3
-    else:
-        return None
+    # Thanks to Shawn Frueh for the idea of using itertools.combinations
+    # https://github.com/ShawnFrueh/advent_of_code/blob/266cada3c6d4949d7d88b4be75fbc85cc903b291/2020/day_01/answer.py#L30
+    for combination in itertools.combinations(entries, number):
+        if sum(combination) == 2020:
+            return reduce(operator.mul, combination, 1)
 
 
 if __name__ == '__main__':
