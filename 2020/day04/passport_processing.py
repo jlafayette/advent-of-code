@@ -152,6 +152,8 @@ def main():
     # part 2   time elapsed 43:26
     print(valid_passports2(passport_data))
 
+    # with cleanup - time elapsed 51:15
+
 
 if __name__ == "__main__":
     main()
