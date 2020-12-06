@@ -1,3 +1,4 @@
+"""Initial solution done as fast as possible."""
 from pathlib import Path
 
 import pytest
