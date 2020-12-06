@@ -15,3 +15,7 @@ venv/
 
 # pyenv
 .python-version
+
+# nim executables
+2020/day01/report_repair
+2020/day02/password_philosophy
