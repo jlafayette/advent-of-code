@@ -1,4 +1,10 @@
-"""Initial solution."""
+"""Day 6: Custom Customs
+
+https://adventofcode.com/2020/day/6
+
+Initial solution to get the answer as quick as possible
+
+"""
 from pathlib import Path
 
 

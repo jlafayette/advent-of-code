@@ -1,4 +1,10 @@
-"""Cleaned up solution."""
+"""Day 5: Report Repair 
+
+https://adventofcode.com/2020/day/5
+
+Cleaned up solution
+
+"""
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable

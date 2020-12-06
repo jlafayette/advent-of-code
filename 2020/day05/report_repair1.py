@@ -1,4 +1,10 @@
-"""Initial solution done as fast as possible."""
+"""Day 5: Report Repair 
+
+https://adventofcode.com/2020/day/5
+
+Initial solution to get the answer as quick as possible
+
+"""
 from pathlib import Path
 
 import pytest

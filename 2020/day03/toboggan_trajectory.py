@@ -1,3 +1,8 @@
+"""Day 3: Toboggan Trajectory
+
+https://adventofcode.com/2020/day/3
+
+"""
 import operator
 from functools import reduce
 from pathlib import Path
