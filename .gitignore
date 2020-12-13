@@ -13,6 +13,9 @@ venv/
 .vscode/
 .idea/
 
+# pytest
+.pytest_cache/
+
 # pyenv
 .python-version
 
