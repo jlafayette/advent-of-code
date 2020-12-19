@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
     ("((2 + 4 * 9) * (6 + 9 * 8 + 6) + 6) + 2 + 4 * 2", 13632),
 ])
 def test_eval_expression(expression, expected):
-    actual = eval_expression(expression, verbose=True)
+    actual = eval_expression(expression)
     logger.debug("")
     logger.debug(expression)
     logger.debug('-->', actual, '<--')
@@ -56,7 +56,7 @@ def in_parens(s: str) -> (str, str):
     raise RuntimeError("No closing parens found")
 
 
-def eval_expression(expression: str, lvl=0, verbose=False) -> int:
+def eval_expression(expression: str, lvl=0) -> int:
     indent = " "*(lvl*2)
     logger.debug(f"{indent}eval: {expression!r}")
 
@@ -68,7 +68,7 @@ def eval_expression(expression: str, lvl=0, verbose=False) -> int:
         exp = exp[1:]
         if c == "(":
             enclosed, exp = in_parens(exp)
-            result = eval_expression(enclosed, lvl=lvl+1, verbose=verbose)
+            result = eval_expression(enclosed, lvl=lvl+1)
             exp2 += str(result)
         else:
             exp2 += c
@@ -99,7 +99,7 @@ def eval_expression(expression: str, lvl=0, verbose=False) -> int:
     return result
 
 
-def part1(data: str):
+def part1(data: str) -> int:
     return sum([eval_expression(exp) for exp in data.strip().split("\n")])
 
 
@@ -132,7 +132,7 @@ def test_eval_expression2(expression, expected):
     assert actual == expected
 
 
-def eval_expression2(expression: str, lvl=0, verbose=False) -> int:
+def eval_expression2(expression: str, lvl=0) -> int:
     indent = " "*(lvl*2)
     logger.debug(f"{indent}eval: {expression!r}")
 
@@ -145,15 +145,15 @@ def eval_expression2(expression: str, lvl=0, verbose=False) -> int:
         exp = exp[1:]
         if c == "(":
             enclosed, exp = in_parens(exp)
-            exp2 += str(eval_expression2(enclosed, lvl=lvl+1, verbose=verbose))
+            exp2 += str(eval_expression2(enclosed, lvl=lvl+1))
         else:
             exp2 += c
     logger.debug(f"{indent}no parens: {exp2}")
 
-    # ---- solve addition first
+    # -- solve addition before multiplication
 
-    def replace(matchobj):
-        return str(eval(matchobj.group(0)))
+    def replace(match):
+        return str(eval(match.group(0)))
 
     add_pattern = re.compile(r'(\d+ \+ \d+)')
 
@@ -166,7 +166,6 @@ def eval_expression2(expression: str, lvl=0, verbose=False) -> int:
             else:
                 s1 = s2
         s = s2
-        # logger.debug(s)
         return s
 
     def add_replacer(s):
@@ -175,14 +174,14 @@ def eval_expression2(expression: str, lvl=0, verbose=False) -> int:
     exp3 = add_replacer(exp2)
     logger.debug(f"{indent}no add: {exp3}")
 
-    # -- handle multiply with eval
+    # -- handle multiplication with eval
 
     exp4 = eval(exp3)
     logger.debug(f"{indent}final: {exp4}")
     return exp4
 
 
-def part2(data: str):
+def part2(data: str) -> int:
     return sum([eval_expression2(exp) for exp in data.strip().split("\n")])
 
 
