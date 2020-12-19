@@ -4,11 +4,14 @@ https://adventofcode.com/2020/day/18
 
 """
 import re
-import operator
-import string
+import sys
+import logging
 from pathlib import Path
 
 import pytest
+
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.parametrize("expression,expected", [
@@ -18,85 +21,82 @@ import pytest
     ("((2 + 4 * 9) * (6 + 9 * 8 + 6) + 6) + 2 + 4 * 2", 13632),
 ])
 def test_eval_expression(expression, expected):
-    # assert eval_expression(expression) == expected
-    print()
-    print(expression)
-    print('-->', eval_expression(expression), '<--')
+    actual = eval_expression(expression, verbose=True)
+    logger.debug("")
+    logger.debug(expression)
+    logger.debug('-->', actual, '<--')
+    assert actual == expected
 
 
-def in_parens(s):
+def in_parens(s: str) -> (str, str):
+    """Scan forward in string to find closing parenthesis.
+
+    Returns:
+        Tuple:
+            part of expression enclosed in parens
+            remainder of expression after the closing parens
+
+    """
+
+    # This function will be invoked after finding the first opening parens,
+    # so the counter starts at 1
     open_ = 1
-    acc = ""
+
+    enclosed = ""
     for i, c in enumerate(s):
-        acc += c
+        enclosed += c
         if c == "(":
             open_ += 1
         elif c == ")":
             open_ -= 1
         if open_ <= 0:
-            if acc.endswith(")"):
-                acc = acc[:-1]
-            return acc, s[i+1:]
-    raise RuntimeError("no closing parens found")
-
-
-def str_op(op):
-    if op == operator.mul:
-        return "*"
-    elif op == operator.add:
-        return "+"
-    else:
-        return ""
-
-
-def log(msg, verbose):
-    if verbose:
-        print(msg)
+            if enclosed.endswith(")"):
+                enclosed = enclosed[:-1]
+            return enclosed, s[i+1:]
+    raise RuntimeError("No closing parens found")
 
 
 def eval_expression(expression: str, lvl=0, verbose=False) -> int:
     indent = " "*(lvl*2)
-    log(f"{indent}eval: {expression!r}", verbose)
-    num = None
-    op = None
+    logger.debug(f"{indent}eval: {expression!r}")
 
-    acc = None
-
+    # -- solve parens first
     exp = expression
+    exp2 = ""
     while exp:
         c = exp[0]
         exp = exp[1:]
-
-        if c in string.digits:
-            num = int(c)
-        elif c == " ":
-            pass
-        elif c == "(":
+        if c == "(":
             enclosed, exp = in_parens(exp)
-            num = eval_expression(enclosed, lvl=lvl+1)
-            # acc = op(acc, eval_expression(enclosed))
-        elif c == ")":
-            raise RuntimeError("should not hit ')'")
-        elif c == "+":
-            op = operator.add
-        elif c == "*":
-            op = operator.mul
+            result = eval_expression(enclosed, lvl=lvl+1, verbose=verbose)
+            exp2 += str(result)
         else:
-            raise RuntimeError(f"unidentified {c!r}")
+            exp2 += c
+    logger.debug(f"{indent} no parens: {exp2}")
 
-        if num and (acc is None):
-            acc = num
-            num = None
+    # -- solve from left to right
+    result_str, exp2 = exp2.split(" ", 1)
+    result = int(result_str)
+    while exp2:
+        try:
+            op_str, num, exp2 = exp2.split(" ", 2)
+        except ValueError:  # not enough to unpack
+            try:
+                op_str, num = exp2.split(" ")
+                exp2 = ""
+            except ValueError:
+                logger.debug(f"{indent}break: {exp2!r}")
+                break
 
-        if num and op:
-            log(f"{indent}{str_op(op)} to acc ({acc} {str_op(op)} {num})", verbose)
-            acc = op(acc, num)
-            num = None
-            op = None
+        if op_str == "+":
+            result += int(num)
+        elif op_str == "*":
+            result *= int(num)
+        else:
+            raise RuntimeError(f"Invalid operator: {op_str!r}")
 
-        log(f"{indent}acc={acc},num={num}", verbose)
-
-    return acc
+    logger.debug(f"{indent}{result}")
+    return result
 
 
 def part1(data: str):
@@ -126,15 +126,15 @@ def part1(data: str):
 ])
 def test_eval_expression2(expression, expected):
     actual = eval_expression2(expression)
-    print()
-    print(expression)
-    print('-->', actual, '<--')
+    logger.debug("")
+    logger.debug(expression)
+    logger.debug('-->', actual, '<--')
     assert actual == expected
 
 
 def eval_expression2(expression: str, lvl=0, verbose=False) -> int:
     indent = " "*(lvl*2)
-    log(f"{indent}eval: {expression!r}", verbose)
+    logger.debug(f"{indent}eval: {expression!r}")
 
     # solve parenthesis first
 
@@ -148,7 +148,7 @@ def eval_expression2(expression: str, lvl=0, verbose=False) -> int:
             exp2 += str(eval_expression2(enclosed, lvl=lvl+1, verbose=verbose))
         else:
             exp2 += c
-    log(f"{indent}no parens: {exp2}", verbose)
+    logger.debug(f"{indent}no parens: {exp2}")
 
     # ---- solve addition first
 
@@ -166,19 +166,19 @@ def eval_expression2(expression: str, lvl=0, verbose=False) -> int:
             else:
                 s1 = s2
         s = s2
-        # print(s)
+        # logger.debug(s)
         return s
 
     def add_replacer(s):
         return replacer(s, add_pattern)
 
     exp3 = add_replacer(exp2)
-    log(f"{indent}no add: {exp3}", verbose)
+    logger.debug(f"{indent}no add: {exp3}")
 
     # -- handle multiply with eval
 
     exp4 = eval(exp3)
-    log(f"{indent}final: {exp4}", verbose)
+    logger.debug(f"{indent}final: {exp4}")
     return exp4
 
 
@@ -190,9 +190,13 @@ def main():
     input_file = Path(__file__).parent / "input"
     data = input_file.read_text()
 
-    print(part1(data))
-    print(part2(data))
+    logger.info(part1(data))  # 14006719520523
+    logger.info(part2(data))  # 545115449981968
 
 
 if __name__ == "__main__":
+    if "-v" in sys.argv:
+        logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(message)s")
     main()
