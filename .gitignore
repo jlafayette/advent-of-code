@@ -23,3 +23,6 @@ venv/
 2020/day01/report_repair
 2020/day02/password_philosophy
 2020/day03/toboggan_trajectory
+
+# zig
+zig-cache
