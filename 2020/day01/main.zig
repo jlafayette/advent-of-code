@@ -11,10 +11,7 @@ pub fn main() anyerror!void {
     const allocator = &arena.allocator;
 
     var path_buffer: [100]u8 = undefined;
-    const cwd = try fs.cwd().realpath("", &path_buffer);
-    const day01 = fs.path.dirname(cwd).?;
-    const input = try fs.path.join(allocator, &[_][]const u8{ day01, "input" });
-    print("cwd: {s}\n", .{cwd});
+    const input = try fs.cwd().realpath("input", &path_buffer);
     print("input: {s}\n", .{input});
     const file = try fs.openFileAbsolute(
         input,
