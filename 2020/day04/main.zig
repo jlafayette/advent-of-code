@@ -40,7 +40,7 @@ pub fn main() anyerror!void {
             valid += 1;
         }
     }
-    print("part 2: {d}\n", .{valid});
+    print("part 1: {d}\n", .{valid});
 
     // part 2: 179
     iter = std.mem.split(input, "\r\n\r\n");
