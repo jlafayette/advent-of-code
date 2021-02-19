@@ -14,13 +14,27 @@ pub fn main() anyerror!void {
         while (true) {
             var t = tokens.next() orelse break;
             const field: []const u8 = t[0..3];
-            if (std.mem.eql(u8, field, "ecl")) {required |= 1;}
-            if (std.mem.eql(u8, field, "pid")) {required |= 2;}
-            if (std.mem.eql(u8, field, "eyr")) {required |= 4;}
-            if (std.mem.eql(u8, field, "hcl")) {required |= 8;}
-            if (std.mem.eql(u8, field, "byr")) {required |= 16;}
-            if (std.mem.eql(u8, field, "iyr")) {required |= 32;}
-            if (std.mem.eql(u8, field, "hgt")) {required |= 64;}
+            if (std.mem.eql(u8, field, "ecl")) {
+                required |= 1;
+            }
+            if (std.mem.eql(u8, field, "pid")) {
+                required |= 2;
+            }
+            if (std.mem.eql(u8, field, "eyr")) {
+                required |= 4;
+            }
+            if (std.mem.eql(u8, field, "hcl")) {
+                required |= 8;
+            }
+            if (std.mem.eql(u8, field, "byr")) {
+                required |= 16;
+            }
+            if (std.mem.eql(u8, field, "iyr")) {
+                required |= 32;
+            }
+            if (std.mem.eql(u8, field, "hgt")) {
+                required |= 64;
+            }
         }
         if (required == @as(u7, 127)) {
             valid += 1;
@@ -31,7 +45,7 @@ pub fn main() anyerror!void {
     // part 2: 179
     iter = std.mem.split(input, "\r\n\r\n");
     valid = 0;
-    while(true) {
+    while (true) {
         var slice = iter.next() orelse break;
         var tokens = std.mem.tokenize(slice, "\r\n ");
         var required: u7 = 0;
@@ -42,13 +56,27 @@ pub fn main() anyerror!void {
             }
             const field: []const u8 = t[0..3];
             const value: []const u8 = t[4..];
-            if (std.mem.eql(u8, field, "ecl") and eclIsValid(value)) {required |= 1;}
-            if (std.mem.eql(u8, field, "pid") and pidIsValid(value)) {required |= 2;}
-            if (std.mem.eql(u8, field, "eyr") and eyrIsValid(value)) {required |= 4;}
-            if (std.mem.eql(u8, field, "hcl") and hclIsValid(value)) {required |= 8;}
-            if (std.mem.eql(u8, field, "byr") and byrIsValid(value)) {required |= 16;}
-            if (std.mem.eql(u8, field, "iyr") and iyrIsValid(value)) {required |= 32;}
-            if (std.mem.eql(u8, field, "hgt") and hgtIsValid(value)) {required |= 64;}
+            if (std.mem.eql(u8, field, "ecl") and eclIsValid(value)) {
+                required |= 1;
+            }
+            if (std.mem.eql(u8, field, "pid") and pidIsValid(value)) {
+                required |= 2;
+            }
+            if (std.mem.eql(u8, field, "eyr") and eyrIsValid(value)) {
+                required |= 4;
+            }
+            if (std.mem.eql(u8, field, "hcl") and hclIsValid(value)) {
+                required |= 8;
+            }
+            if (std.mem.eql(u8, field, "byr") and byrIsValid(value)) {
+                required |= 16;
+            }
+            if (std.mem.eql(u8, field, "iyr") and iyrIsValid(value)) {
+                required |= 32;
+            }
+            if (std.mem.eql(u8, field, "hgt") and hgtIsValid(value)) {
+                required |= 64;
+            }
         }
         if (required == @as(u7, 127)) {
             valid += 1;
@@ -69,19 +97,33 @@ test "out of range" {
 
 fn eclIsValid(value: []const u8) bool {
     // assert value in {"amb", "blu", "brn", "gry", "grn", "hzl", "oth"}
-    if (std.mem.eql(u8, value, "amb")) { return true; }
-    if (std.mem.eql(u8, value, "blu")) { return true; }
-    if (std.mem.eql(u8, value, "brn")) { return true; }
-    if (std.mem.eql(u8, value, "gry")) { return true; }
-    if (std.mem.eql(u8, value, "grn")) { return true; }
-    if (std.mem.eql(u8, value, "hzl")) { return true; }
-    if (std.mem.eql(u8, value, "oth")) { return true; }
+    if (std.mem.eql(u8, value, "amb")) {
+        return true;
+    }
+    if (std.mem.eql(u8, value, "blu")) {
+        return true;
+    }
+    if (std.mem.eql(u8, value, "brn")) {
+        return true;
+    }
+    if (std.mem.eql(u8, value, "gry")) {
+        return true;
+    }
+    if (std.mem.eql(u8, value, "grn")) {
+        return true;
+    }
+    if (std.mem.eql(u8, value, "hzl")) {
+        return true;
+    }
+    if (std.mem.eql(u8, value, "oth")) {
+        return true;
+    }
     return false;
 }
 
 test "numbers" {
-    print("\n0-9: {d}-{d}\n", .{'0', '9'});
-    print("a-f: {d}-{d}\n", .{'a', 'f'});
+    print("\n0-9: {d}-{d}\n", .{ '0', '9' });
+    print("a-f: {d}-{d}\n", .{ 'a', 'f' });
     print("\n\n", .{});
 }
 
