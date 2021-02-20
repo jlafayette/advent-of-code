@@ -121,19 +121,13 @@ fn eclIsValid(value: []const u8) bool {
     return false;
 }
 
-test "numbers" {
-    print("\n0-9: {d}-{d}\n", .{ '0', '9' });
-    print("a-f: {d}-{d}\n", .{ 'a', 'f' });
-    print("\n\n", .{});
-}
-
 fn pidIsValid(value: []const u8) bool {
     // pid (Passport ID) - a nine-digit number, including leading zeroes.
     if (value.len != 9) {
         return false;
     }
     for (value) |byte| {
-        if (byte < 48 or byte > 57) {
+        if (byte < '0' or byte > '9') {
             return false;
         }
     }
@@ -169,9 +163,7 @@ fn hclIsValid(value: []const u8) bool {
         return false;
     }
     for (value[1..]) |byte| {
-        // 0-9 -> 48-57
-        // a-f -> 97-102
-        if (!((byte >= 48 and byte <= 57) or (byte >= 97 and byte <= 102))) {
+        if (!((byte >= '0' and byte <= '9') or (byte >= 'a' and byte <= 'f'))) {
             return false;
         }
     }
