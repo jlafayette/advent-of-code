@@ -140,19 +140,24 @@ fn pidIsValid(value: []const u8) bool {
     return true;
 }
 
-fn eyrIsValid(value: []const u8) bool {
-    // eyr (Expiration Year) - four digits; at least 2020 and at most 2030.
-    if (value.len != 4) {
+fn yearInRange(year: []const u8, min: usize, max: usize) bool {
+    // assumes that year is 4 digits
+    if (year.len != 4) {
         return false;
     }
-    if (std.fmt.parseInt(usize, value, 10)) |number| {
-        if (number < 2020 or number > 2030) {
+    if (std.fmt.parseInt(usize, year, 10)) |n| {
+        if (n < min or n > max) {
             return false;
         }
     } else |err| {
         return false;
     }
     return true;
+}
+
+fn eyrIsValid(value: []const u8) bool {
+    // eyr (Expiration Year) - four digits; at least 2020 and at most 2030.
+    return yearInRange(value, 2020, 2030);
 }
 
 fn hclIsValid(value: []const u8) bool {
@@ -175,32 +180,12 @@ fn hclIsValid(value: []const u8) bool {
 
 fn byrIsValid(value: []const u8) bool {
     // byr (Birth Year) - four digits; at least 1920 and at most 2002.
-    if (value.len != 4) {
-        return false;
-    }
-    if (std.fmt.parseInt(usize, value, 10)) |number| {
-        if (number < 1920 or number > 2002) {
-            return false;
-        }
-    } else |err| {
-        return false;
-    }
-    return true;
+    return yearInRange(value, 1920, 2002);
 }
 
 fn iyrIsValid(value: []const u8) bool {
     // iyr (Issue Year) - four digits; at least 2010 and at most 2020.
-    if (value.len != 4) {
-        return false;
-    }
-    if (std.fmt.parseInt(usize, value, 10)) |number| {
-        if (number < 2010 or number > 2020) {
-            return false;
-        }
-    } else |err| {
-        return false;
-    }
-    return true;
+    return yearInRange(value, 2010, 2020);
 }
 
 fn hgtIsValid(value: []const u8) bool {
