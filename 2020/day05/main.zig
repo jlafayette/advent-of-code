@@ -56,6 +56,22 @@ pub fn main() anyerror!void {
     print("part 2: {d}\n", .{part2});
 }
 
+test "iterators" {
+    print("\n", .{});
+    const words = "iterators in zig are awkward";
+    var iter = std.mem.tokenize(words, " ");
+    var word = iter.next();
+    while (word != null) : (word = iter.next()) {
+        print("word: {s}\n", .{word});
+    }
+    iter = std.mem.tokenize(words, " ");
+    while (true) {
+        word = iter.next() orelse break;
+        print("word: {s}\n", .{word});
+    }
+    print("\n\n", .{});
+}
+
 fn calculateId(row: i32, col: i32) i32 {
     return row*8 + col;
 }
