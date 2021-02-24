@@ -9,8 +9,7 @@ pub fn main() anyerror!void {
     var lines = std.mem.split(input, "\r\n");
     var line_count: usize = 0;
     var max: i32 = 0;
-    while (true) {
-        var line = lines.next() orelse break;
+    while (lines.next()) |line| {
         const seat = decodeSeat(line);
         max = std.math.max(max, seat.code);
         line_count += 1;
@@ -24,8 +23,7 @@ pub fn main() anyerror!void {
     lines = std.mem.split(input, "\r\n");
     var ids = try allocator.alloc(i32, line_count);
     var ids_index: usize = 0;
-    while (true) {
-        const line = lines.next() orelse break;
+    while (lines.next()) |line| {
         const seat = decodeSeat(line);
         ids[ids_index] = seat.code;
         ids_index += 1;
@@ -58,15 +56,9 @@ pub fn main() anyerror!void {
 
 test "iterators" {
     print("\n", .{});
-    const words = "iterators in zig are awkward";
+    const words = "iterators in zig are great!";
     var iter = std.mem.tokenize(words, " ");
-    var word = iter.next();
-    while (word != null) : (word = iter.next()) {
-        print("word: {s}\n", .{word});
-    }
-    iter = std.mem.tokenize(words, " ");
-    while (true) {
-        word = iter.next() orelse break;
+    while (iter.next()) |word| {
         print("word: {s}\n", .{word});
     }
     print("\n\n", .{});
