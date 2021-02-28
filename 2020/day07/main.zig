@@ -10,18 +10,19 @@ pub fn main() anyerror!void {
     defer arena.deinit();
     const allocator = &arena.allocator;
 
-    var data =
-    \\light red bags contain 1 bright white bag, 2 muted yellow bags.
-    \\dark orange bags contain 3 bright white bags, 4 muted yellow bags.
-    \\bright white bags contain 1 shiny gold bag.
-    \\muted yellow bags contain 2 shiny gold bags, 9 faded blue bags.
-    \\shiny gold bags contain 1 dark olive bag, 2 vibrant plum bags.
-    \\dark olive bags contain 3 faded blue bags, 4 dotted black bags.
-    \\vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.
-    \\faded blue bags contain no other bags.
-    \\dotted black bags contain no other bags.
-    ;
-    _ = try part1(allocator, data);
+    // var data =
+    // \\light red bags contain 1 bright white bag, 2 muted yellow bags.
+    // \\dark orange bags contain 3 bright white bags, 4 muted yellow bags.
+    // \\bright white bags contain 1 shiny gold bag.
+    // \\muted yellow bags contain 2 shiny gold bags, 9 faded blue bags.
+    // \\shiny gold bags contain 1 dark olive bag, 2 vibrant plum bags.
+    // \\dark olive bags contain 3 faded blue bags, 4 dotted black bags.
+    // \\vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.
+    // \\faded blue bags contain no other bags.
+    // \\dotted black bags contain no other bags.
+    // ;
+    const part1_result = try part1(allocator, input);
+    print("part1: {d}\n", .{part1_result});
 }
 
 const Bags = struct {
@@ -30,39 +31,24 @@ const Bags = struct {
 };
 
 const Bag = struct {
-    // allocator: *Allocator,
-    // buffer: []u8,
     name: []const u8,
     // contains: ArrayList(*Bags),
     possibleParents: ArrayList([]const u8),
 
     fn init(allocator: *Allocator, name: []const u8) Bag {
-        // var buffer = try allocator.alloc(u8, name.len);
         // var contains = ArrayList(*Bags).init(allocator);
-        var possibleParents = ArrayList([]const u8).init(allocator);
+        var possible_parents = ArrayList([]const u8).init(allocator);
         return Bag{
-            // .allocator=allocator,
-            // .buffer=buffer,
-            // .name=buffer[0..],
             .name=name,
             // .contains=contains,
-            .possibleParents=possibleParents,
+            .possibleParents=possible_parents,
         };
     }
     fn deinit(self: *Bag) void {
-        // self.allocator.free(self.buffer);
         // self.contains.deinit();
         self.possibleParents.deinit();
     }
 };
-
-
-// fn getBag(allocator: *Allocator, map: *std.AutoHashMap(usize, *Bag), name: []const u8) *Bag {
-//     if (map.get(hashStr(name))) |bag| {
-//        return bag;
-//     }
-//     return &Bag.init(allocator, name);
-// }
 
 
 fn part1(allocator: *Allocator, data: []const u8) !usize {
@@ -72,11 +58,11 @@ fn part1(allocator: *Allocator, data: []const u8) !usize {
     var lineIt = std.mem.split(data, "\n");
     // hash map of bag-name -> *Bag
     while (lineIt.next()) |line| {
-        print(" . {s} . \n", .{line});
+        // print(" . {s} . \n", .{line});
         var it = std.mem.split(line, " bags ");
         const name = line[0..it.next().?.len];
 
-        print("name: {s}\n", .{name});
+        // print("name: {s}\n", .{name});
         // var bag = getBag(allocator, &map, name);
         const gop_bag = try map.getOrPut(name);
         if (!gop_bag.found_existing) {
@@ -84,14 +70,14 @@ fn part1(allocator: *Allocator, data: []const u8) !usize {
             // print("type of name buffer: {}\n", .{@TypeOf(name_buffer)});
             gop_bag.entry.value = Bag.init(allocator, name);
         }
-        print("bag.name: {s}\n", .{gop_bag.entry.value.name});
+        // print("bag.name: {s}\n", .{gop_bag.entry.value.name});
         if (std.mem.eql(u8, it.rest(), "contain no other bags.")) {
-            print("no other bags, continue\n", .{});
+            // print("no other bags, continue\n", .{});
             continue;
         }
         var contained_str = it.rest();
         contained_str = contained_str[8..contained_str.len-1];  // trim off 'contans ' from start and '.' from end
-        print("contains: |{s}|\n", .{contained_str});
+        // print("contains: |{s}|\n", .{contained_str});
         var contained_bags_iter = std.mem.split(contained_str, ", ");
         while(contained_bags_iter.next()) |contained_bag| {
             var bag_iter = std.mem.split(contained_bag, " ");
@@ -102,7 +88,7 @@ fn part1(allocator: *Allocator, data: []const u8) !usize {
                     1 => rest[0..rest.len-4],
                     else => rest[0..rest.len-5],
                 };
-                print("\tcontains {d} of {s}\n", .{n, contained_name});
+                // print("\tcontains {d} of {s}\n", .{n, contained_name});
                 const gop_cbag = try map.getOrPut(contained_name);
                 if (!gop_cbag.found_existing) {
                     gop_cbag.entry.value = Bag.init(allocator, contained_name);
@@ -114,14 +100,33 @@ fn part1(allocator: *Allocator, data: []const u8) !usize {
             }
         }
     }
-    var mapIter = map.iterator();
-    while (mapIter.next()) |kv| {
-        print("bag hash: {s}, name: {s}\n", .{kv.key, kv.value.name});
-        for (kv.value.possibleParents.items) |pp| {
-            print("\thas possible parent: {s}\n", .{pp});
-        }
+    // var mapIter = map.iterator();
+    // while (mapIter.next()) |kv| {
+    //     print("bag hash: {s}, name: {s}\n", .{kv.key, kv.value.name});
+    //     for (kv.value.possibleParents.items) |pp| {
+    //         print("\thas possible parent: {s}\n", .{pp});
+    //     }
+    // }
+    if (map.get("shiny gold")) |shiny_gold| {
+        return possibleParents(0, map, &shiny_gold);
     }
     return 0;
+}
+
+fn possibleParents(top_parents: usize, map: std.StringHashMap(Bag), bag: *const Bag) usize {
+    var result = top_parents;
+    for (bag.possibleParents.items) |pp_name| {
+        if (map.get(pp_name)) |pp| {
+            if (pp.possibleParents.items.len == 0) {
+                // print("added top level parent: {s}\n", .{pp.name});
+                result += 1;
+            } else {
+                result = possibleParents(result, map, &pp);
+            }
+        }
+
+    }
+    return result;
 }
 
 /// Convert string to int so it can be used as a HashMap key.
