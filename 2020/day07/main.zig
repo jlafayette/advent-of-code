@@ -1,9 +1,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const print = std.debug.print;
 const input = @embedFile("input");
-
 
 pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -26,37 +26,36 @@ pub fn main() anyerror!void {
 }
 
 const Bags = struct {
-    bag: *Bag,
+    name: []const u8,
     count: usize,
 };
 
 const Bag = struct {
     name: []const u8,
-    // contains: ArrayList(*Bags),
+    contains: ArrayList(Bags),
     possibleParents: ArrayList([]const u8),
 
     fn init(allocator: *Allocator, name: []const u8) Bag {
-        // var contains = ArrayList(*Bags).init(allocator);
+        var contains = ArrayList(Bags).init(allocator);
         var possible_parents = ArrayList([]const u8).init(allocator);
         return Bag{
-            .name=name,
-            // .contains=contains,
-            .possibleParents=possible_parents,
+            .name = name,
+            .contains = contains,
+            .possibleParents = possible_parents,
         };
     }
     fn deinit(self: *Bag) void {
-        // self.contains.deinit();
+        self.contains.deinit();
         self.possibleParents.deinit();
     }
 };
-
 
 fn part1(allocator: *Allocator, data: []const u8) !usize {
     var map = std.StringHashMap(Bag).init(allocator);
     defer map.deinit();
     // store all bags in a map
     var lineIt = std.mem.split(data, "\n");
-    // hash map of bag-name -> *Bag
+    // hash map of bag-name -> Bag
     while (lineIt.next()) |line| {
         // print(" . {s} . \n", .{line});
         var it = std.mem.split(line, " bags ");
@@ -76,17 +75,17 @@ fn part1(allocator: *Allocator, data: []const u8) !usize {
             continue;
         }
         var contained_str = it.rest();
-        contained_str = contained_str[8..contained_str.len-1];  // trim off 'contans ' from start and '.' from end
+        contained_str = contained_str[8 .. contained_str.len - 1]; // trim off 'contans ' from start and '.' from end
         // print("contains: |{s}|\n", .{contained_str});
         var contained_bags_iter = std.mem.split(contained_str, ", ");
-        while(contained_bags_iter.next()) |contained_bag| {
+        while (contained_bags_iter.next()) |contained_bag| {
             var bag_iter = std.mem.split(contained_bag, " ");
             if (bag_iter.next()) |num_str| {
                 const n = try std.fmt.parseInt(u32, num_str, 10);
                 var rest = bag_iter.rest();
-                const contained_name = switch(n) {
-                    1 => rest[0..rest.len-4],
-                    else => rest[0..rest.len-5],
+                const contained_name = switch (n) {
+                    1 => rest[0 .. rest.len - 4],
+                    else => rest[0 .. rest.len - 5],
                 };
                 // print("\tcontains {d} of {s}\n", .{n, contained_name});
                 const gop_cbag = try map.getOrPut(contained_name);
@@ -124,68 +123,80 @@ fn possibleParents(top_parents: usize, map: std.StringHashMap(Bag), bag: *const 
                 result = possibleParents(result, map, &pp);
             }
         }
-
     }
     return result;
 }
 
-/// Convert string to int so it can be used as a HashMap key.
-fn hashStr(str: []const u8) usize {
-    var hash: usize = 0;
-    for (str) |byte, i| {
-        hash += byte * i;
-    }
-    return hash;
-}
-
-test "hash str->*Bag" {
-    var map = std.AutoHashMap(usize, *Bag).init(std.testing.allocator);
+test "hash str->Bag" {
+    var a = std.testing.allocator;
+    var map = std.StringHashMap(Bag).init(a);
     defer map.deinit();
-    var golden_bag = Bag.init(std.testing.allocator, "golden bag");
+    var golden_bag = Bag.init(a, "shiny gold");
     defer golden_bag.deinit();
-    var red_bag = Bag.init(std.testing.allocator, "red bag");
-    defer red_bag.deinit();
-    try map.put(hashStr(golden_bag.name), &golden_bag);
-    try map.put(hashStr(red_bag.name), &red_bag);
-    if (map.get(hashStr("golden bag"))) |bag| {
-        print("found bag: {s}\n", .{bag.name});
-    }
+    var olive_bag = Bag.init(a, "dark olive");
+    defer olive_bag.deinit();
+    try map.put(golden_bag.name, golden_bag);
+    try map.put(olive_bag.name, olive_bag);
+
+    var bag = map.get("shiny gold").?;
+    print("found bag: {s}\n", .{bag.name});
+    try bag.contains.append(Bags{ .name = olive_bag.name, .count = 1 });
+    // print("contains: {s}\n", .{bag.contains.items[0].name});
+
+    // if (map.get("shiny gold")) |bag| {
+    //     print("found bag: {s}\n", .{bag.name});
+    //     try bag.contains.append(Bags{ .name = olive_bag.name, .count = 1 });
+    //     print("contains: {s}\n", .{bag.contains.items[0].name});
+    // }
+
+    // var cbag = try map.getOrPut("shiny gold");
+    // if (cbag.found_existing) {
+    //     try cbag.entry.value.contains.append(Bags{ .name = olive_bag.name, .count = 1 });
+    // }
+
+    // if (map.get("shiny gold")) |bag| {
+    //     print("found bag: {s}\n", .{bag.name});
+    //     print("contains: {s}\n", .{bag.contains.items[0].name});
+    // }
     print("\n\n", .{});
 }
 
 test "part 1" {
-    
     var data =
-    \\light red bags contain 1 bright white bag, 2 muted yellow bags.
-    \\dark orange bags contain 3 bright white bags, 4 muted yellow bags.
-    \\bright white bags contain 1 shiny gold bag.
-    \\muted yellow bags contain 2 shiny gold bags, 9 faded blue bags.
-    \\shiny gold bags contain 1 dark olive bag, 2 vibrant plum bags.
-    \\dark olive bags contain 3 faded blue bags, 4 dotted black bags.
-    \\vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.
-    \\faded blue bags contain no other bags.
-    \\dotted black bags contain no other bags.
+        \\light red bags contain 1 bright white bag, 2 muted yellow bags.
+        \\dark orange bags contain 3 bright white bags, 4 muted yellow bags.
+        \\bright white bags contain 1 shiny gold bag.
+        \\muted yellow bags contain 2 shiny gold bags, 9 faded blue bags.
+        \\shiny gold bags contain 1 dark olive bag, 2 vibrant plum bags.
+        \\dark olive bags contain 3 faded blue bags, 4 dotted black bags.
+        \\vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.
+        \\faded blue bags contain no other bags.
+        \\dotted black bags contain no other bags.
     ;
+    // var a = std.testing.allocator;
+    // var r = try part1(a, data);
+    // print("result: {d}\n", .{r});
+    // print("\n\n", .{});
     // std.testing.expectEqual(@as(usize, 4), part1(data));
 }
 
-// def test_part1():
-//     assert part1(create_bag_lookup(TEST_DATA)) == 4
-
-test "ArrayList" {
-    var a = std.testing.allocator;
-    var list: ArrayList(u8) = ArrayList(u8).init(a);
-    defer list.deinit();
-    try list.append('a');
-    try list.append('b');
-    try list.append('c');
-    print("list: {s}\n", .{list.items});
-    print("\n\n", .{});
-    var bag = Bag.init(a, "golden bag");
-    defer bag.deinit();
-    var bag2 = Bag.init(a, "olive bag");
-    defer bag2.deinit();
-    try bag.contains.append(&Bags{ .bag=&bag2, .count=3 });
-    try bag2.possibleParents.append(&bag);
-}
-
+// test "ArrayList" {
+//     var a = std.testing.allocator;
+//     var list: ArrayList(u8) = ArrayList(u8).init(a);
+//     defer list.deinit();
+//     try list.append('a');
+//     try list.append('b');
+//     try list.append('c');
+//     print("\nlist: {s}\n", .{list.items});
+//     print("\n\n", .{});
+//     var bag = Bag.init(a, "golden bag");
+//     defer bag.deinit();
+//     var bag2 = Bag.init(a, "olive bag");
+//     defer bag2.deinit();
+//     try bag.contains.append(Bags{ .name = bag2.name, .count = 3 });
+//     try bag2.possibleParents.append(bag.name);
+//     print("{s}\n", .{bag2.name});
+//     print("{}\n", .{bag2.contains});
+//     print("{}\n", .{bag2.possibleParents});
+//     print("\n\n", .{});
+// }
