@@ -19,10 +19,6 @@ pub fn main() anyerror!void {
 }
 
 fn part1(alloc: *Allocator, data: []const u8) !usize {
-    // shiny gold focused
-    // in the end
-    // gold parents
-    // for p in gold parentsA -> parentsB -> parentsN
     var bagsMap = StringHashMap(ArrayList([]const u8)).init(alloc);
 
     // when we read a rule
