@@ -5,23 +5,14 @@ const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const print = std.debug.print;
 const input = @embedFile("input");
 
+const line_ending = "\n";
+
 pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    const allocator = &arena.allocator;
+    const alloc = &arena.allocator;
 
-    // var data =
-    // \\light red bags contain 1 bright white bag, 2 muted yellow bags.
-    // \\dark orange bags contain 3 bright white bags, 4 muted yellow bags.
-    // \\bright white bags contain 1 shiny gold bag.
-    // \\muted yellow bags contain 2 shiny gold bags, 9 faded blue bags.
-    // \\shiny gold bags contain 1 dark olive bag, 2 vibrant plum bags.
-    // \\dark olive bags contain 3 faded blue bags, 4 dotted black bags.
-    // \\vibrant plum bags contain 5 faded blue bags, 6 dotted black bags.
-    // \\faded blue bags contain no other bags.
-    // \\dotted black bags contain no other bags.
-    // ;
-    const part1_result = try part1(allocator, input);
+    const part1_result = try part1(alloc, input);
     print("part1: {d}\n", .{part1_result});
 }
 
@@ -49,15 +40,6 @@ pub fn main() anyerror!void {
 //         self.possibleParents.deinit();
 //     }
 // };
-
-fn countLines(data: []const u8) usize {
-    var count = 0;
-    var lineIt = std.mem.split(data, "\n");
-    while (lineIt.next()) |line| {
-        count += 1;
-    }
-    return count;
-}
 
 fn parseName(line: []const u8) []const u8 {
     // print("line: {s}\n", .{line});
@@ -114,6 +96,7 @@ const Bag = struct {
 };
 
 const ContainsIterator = struct {
+    name: []const u8,
     split_iterator: *std.mem.SplitIterator,
 
     /// Return an (optional) iterator for the contents of a bag if it contains anything.
@@ -121,11 +104,13 @@ const ContainsIterator = struct {
         var it = std.mem.split(line, " bags ");
         const name = line[0..it.next().?.len];
         if (std.mem.eql(u8, it.rest(), "contain no other bags.")) {
+            // print("init -> null for {s}\n", .{name});
             return null;
         }
         var contained_str = it.rest();
         contained_str = contained_str[8 .. contained_str.len - 1]; // trim off 'contans ' from start and '.' from end
         return ContainsIterator{
+            .name = name,
             .split_iterator = &std.mem.split(contained_str, ", "),
         };
     }
@@ -136,7 +121,7 @@ const ContainsIterator = struct {
         var bag_iter = std.mem.split(contained_bag, " ");
         if (bag_iter.next()) |num_str| {
             const n = std.fmt.parseInt(u32, num_str, 10) catch {
-                print("oops - no parse...\n", .{});
+                print("oops - failed to parse number for {s}: {s}\n", .{ self.name, num_str });
                 return null;
             };
             var rest = bag_iter.rest();
@@ -146,7 +131,7 @@ const ContainsIterator = struct {
             };
             return contained_name;
         } else {
-            print("oops - no parse...\n", .{});
+            print("oops - no num str...\n", .{});
             return null;
         }
     }
@@ -158,7 +143,7 @@ fn part1(alloc: *Allocator, data: []const u8) !usize {
     var map = std.StringHashMap(bool).init(alloc);
     defer map.deinit();
 
-    var lineIt = std.mem.split(data, "\n");
+    var lineIt = std.mem.split(data, line_ending);
     while (lineIt.next()) |line| {
         try map.put(parseName(line), false);
     }
@@ -167,9 +152,11 @@ fn part1(alloc: *Allocator, data: []const u8) !usize {
     // Also if a bag contains any bag marked true, then mark it as true.
     // Record if any changes were made, continue until a loop does not make any
     // changes to the map.
+    var iterations: usize = 0;
     while (true) {
+        iterations += 1;
         var changes: bool = false;
-        lineIt = std.mem.split(data, "\n");
+        lineIt = std.mem.split(data, line_ending);
         while (lineIt.next()) |line| {
             const name = parseName(line);
             var contains_gold = map.get(name).?;
@@ -182,9 +169,12 @@ fn part1(alloc: *Allocator, data: []const u8) !usize {
                     contains_gold = true;
                     break;
                 }
-                if (map.get(contained_name).?) {
-                    contains_gold = true;
-                    break;
+
+                if (map.get(contained_name)) |contained_name_value| {
+                    if (contained_name_value) {
+                        contains_gold = true;
+                        break;
+                    }
                 }
             }
             if (contains_gold) {
@@ -197,9 +187,12 @@ fn part1(alloc: *Allocator, data: []const u8) !usize {
             break;
         }
     }
+    print("\niterations: {d}\n", .{iterations});
+    print("map:\n", .{});
     var result: usize = 0;
     var iterator = map.iterator();
     while (iterator.next()) |entry| {
+        print("  {s}: {}\n", .{ entry.key, entry.value });
         if (entry.value) {
             result += 1;
         }
