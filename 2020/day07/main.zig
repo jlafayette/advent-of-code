@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const StringHashMap = std.StringHashMap;
 const print = std.debug.print;
 const input = @embedFile("input");
 
@@ -16,200 +16,79 @@ pub fn main() anyerror!void {
     print("part1: {d}\n", .{part1_result});
 }
 
-// const Bags = struct {
-//     name: []const u8,
-//     count: usize,
-// };
+fn part1(alloc: *Allocator, data: []const u8) !usize {
+    // shiny gold focused
+    // in the end
+    // gold parents
+    // for p in gold parentsA -> parentsB -> parentsN
+    var bagsMap = StringHashMap(ArrayList([]const u8)).init(alloc);
 
-// const Bag = struct {
-//     name: []const u8,
-//     contains: ArrayList(Bags),
-//     possibleParents: ArrayList([]const u8),
-
-//     fn init(allocator: *Allocator, name: []const u8) Bag {
-//         var contains = ArrayList(Bags).init(allocator);
-//         var possible_parents = ArrayList([]const u8).init(allocator);
-//         return Bag{
-//             .name = name,
-//             .contains = contains,
-//             .possibleParents = possible_parents,
-//         };
-//     }
-//     fn deinit(self: *Bag) void {
-//         self.contains.deinit();
-//         self.possibleParents.deinit();
-//     }
-// };
-
-fn parseName(line: []const u8) []const u8 {
-    // print("line: {s}\n", .{line});
-    var it = std.mem.split(line, " bags ");
-    const name = line[0..it.next().?.len];
-    // print("bag name: {s}\n", .{name});
-    return name;
-}
-
-fn parseLine(contains: *ArrayList(Contained), line: []const u8) !Bag {
-    print("line: {s}\n", .{line});
-    var it = std.mem.split(line, " bags ");
-    const name = line[0..it.next().?.len];
-
-    print("bag name: {s}\n", .{name});
-    if (std.mem.eql(u8, it.rest(), "contain no other bags.")) {
-        print("no other bags, return\n", .{});
-        const array = [_]Contained{};
-        return Bag{ .name = name, .contains = array[0..] };
-    }
-
-    // var contains = ArrayList(Contained).init(allocator);
-    // defer contains.deinit(); // this causes a crash when trying to access
-
-    var contained_str = it.rest();
-    contained_str = contained_str[8 .. contained_str.len - 1]; // trim off 'contans ' from start and '.' from end
-    print("contains: |{s}|\n", .{contained_str});
-    var contained_bags_iter = std.mem.split(contained_str, ", ");
-    while (contained_bags_iter.next()) |contained_bag| {
-        var bag_iter = std.mem.split(contained_bag, " ");
-        if (bag_iter.next()) |num_str| {
-            const n = try std.fmt.parseInt(u32, num_str, 10);
-            var rest = bag_iter.rest();
-            const contained_name = switch (n) {
-                1 => rest[0 .. rest.len - 4],
-                else => rest[0 .. rest.len - 5],
-            };
-            print("\tcontains {d} of {s}\n", .{ n, contained_name });
-            try contains.append(Contained{ .name = contained_name, .count = n });
-        }
-    }
-    print("{}\n", .{contains});
-    return Bag{ .name = name, .contains = contains.items };
-}
-
-const Contained = struct {
-    name: []const u8,
-    count: usize,
-};
-
-const Bag = struct {
-    name: []const u8,
-    contains: []Contained,
-};
-
-const ContainsIterator = struct {
-    name: []const u8,
-    split_iterator: *std.mem.SplitIterator,
-
-    /// Return an (optional) iterator for the contents of a bag if it contains anything.
-    fn init(line: []const u8) ?ContainsIterator {
+    // when we read a rule
+    // - add bag to map (if not already there) (empty)
+    // - for each contained bag
+    // -- look it up in map
+    // -- if it exists, then append bag
+    // -- else add with one item bag
+    var lineIt = std.mem.split(data, line_ending);
+    while (lineIt.next()) |line| {
         var it = std.mem.split(line, " bags ");
         const name = line[0..it.next().?.len];
+        // - add bag to map (if not already there) (empty)
+        //
+        var gop_bag = try bagsMap.getOrPut(name);
+        if (!gop_bag.found_existing) {
+            var arr_list = ArrayList([]const u8).init(alloc);
+            gop_bag.entry.value = arr_list;
+        }
         if (std.mem.eql(u8, it.rest(), "contain no other bags.")) {
-            // print("init -> null for {s}\n", .{name});
-            return null;
+            continue;
         }
         var contained_str = it.rest();
         contained_str = contained_str[8 .. contained_str.len - 1]; // trim off 'contans ' from start and '.' from end
-        return ContainsIterator{
-            .name = name,
-            .split_iterator = &std.mem.split(contained_str, ", "),
-        };
-    }
-
-    /// Returns a slice of the next bag name, or null if complete.
-    fn next(self: *ContainsIterator) ?[]const u8 {
-        var contained_bag = self.split_iterator.next() orelse return null;
-        var bag_iter = std.mem.split(contained_bag, " ");
-        if (bag_iter.next()) |num_str| {
-            const n = std.fmt.parseInt(u32, num_str, 10) catch {
-                print("oops - failed to parse number for {s}: {s}\n", .{ self.name, num_str });
-                return null;
-            };
-            var rest = bag_iter.rest();
-            const contained_name = switch (n) {
-                1 => rest[0 .. rest.len - 4],
-                else => rest[0 .. rest.len - 5],
-            };
-            return contained_name;
-        } else {
-            print("oops - no num str...\n", .{});
-            return null;
+        var contained_bags_iter = std.mem.split(contained_str, ", ");
+        while (contained_bags_iter.next()) |contained_bag| {
+            var bag_iter = std.mem.split(contained_bag, " ");
+            if (bag_iter.next()) |num_str| {
+                const n = try std.fmt.parseInt(u32, num_str, 10);
+                var rest = bag_iter.rest();
+                const contained_name = switch (n) {
+                    1 => rest[0 .. rest.len - 4],
+                    else => rest[0 .. rest.len - 5],
+                };
+                // -- look it up in map
+                // -- if it exists, then append bag
+                // -- else add with one item bag
+                gop_bag = try bagsMap.getOrPut(contained_name);
+                if (gop_bag.found_existing) {
+                    try gop_bag.entry.value.append(name);
+                } else {
+                    var arr_list = ArrayList([]const u8).init(alloc);
+                    try arr_list.append(name);
+                    gop_bag.entry.value = arr_list;
+                }
+            }
         }
     }
-};
 
-fn part1(alloc: *Allocator, data: []const u8) !usize {
-    // store all bags in a map of bag-name -> bool
-    // true for bags that can hold a shiny golden bag (directly or indirectly)
-    var map = std.StringHashMap(bool).init(alloc);
-    defer map.deinit();
-
-    var lineIt = std.mem.split(data, line_ending);
-    while (lineIt.next()) |line| {
-        try map.put(parseName(line), false);
-    }
-
-    // Go over the map, if a bag contains a shiny gold bag, then mark it as true.
-    // Also if a bag contains any bag marked true, then mark it as true.
-    // Record if any changes were made, continue until a loop does not make any
-    // changes to the map.
-    var iterations: usize = 0;
+    // allparents map name->bool (set)
+    // gold bag -> fitInside
+    // - add each to allOuterBags
+    // - for each, look up in map
+    // -- add all the outBags, recurse/while loop until done
+    var allOuterBags = StringHashMap(bool).init(alloc);
+    var toCheck = ArrayList([]const u8).init(alloc);
+    try toCheck.append("shiny gold");
     while (true) {
-        iterations += 1;
-        var changes: bool = false;
-        lineIt = std.mem.split(data, line_ending);
-        while (lineIt.next()) |line| {
-            const name = parseName(line);
-            var contains_gold = map.get(name).?;
-            if (contains_gold) {
-                continue;
-            }
-            var contains_iterator = ContainsIterator.init(line) orelse continue;
-            while (contains_iterator.next()) |contained_name| {
-                if (std.mem.eql(u8, contained_name, "shiny gold")) {
-                    contains_gold = true;
-                    break;
-                }
-
-                if (map.get(contained_name)) |contained_name_value| {
-                    if (contained_name_value) {
-                        contains_gold = true;
-                        break;
-                    }
-                }
-            }
-            if (contains_gold) {
-                changes = true;
-                var gop = try map.getOrPut(name);
-                gop.entry.value = true;
-            }
-        }
-        if (!changes) {
-            break;
+        const name = toCheck.popOrNull() orelse break;
+        try allOuterBags.put(name, true);
+        const outerBags = bagsMap.get(name) orelse break;
+        for (outerBags.items) |outer_name| {
+            try toCheck.append(outer_name);
         }
     }
-    print("\niterations: {d}\n", .{iterations});
-    print("map:\n", .{});
-    var result: usize = 0;
-    var iterator = map.iterator();
-    while (iterator.next()) |entry| {
-        print("  {s}: {}\n", .{ entry.key, entry.value });
-        if (entry.value) {
-            result += 1;
-        }
-    }
-    return result;
-}
 
-fn leak(alloc: *Allocator) !void {
-    var map = std.StringHashMap(bool).init(alloc);
-    try map.put("foo", true);
-}
-
-test "leak" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const a = &arena.allocator;
-    try leak(a);
+    var count: usize = @as(usize, allOuterBags.count());
+    return count - 1; // subtract 1 for original bag
 }
 
 test "part 1" {
@@ -232,58 +111,3 @@ test "part 1" {
     print("\n\n", .{});
     std.testing.expectEqual(@as(usize, 4), r);
 }
-
-// test "hash str->Bag" {
-//     var a = std.testing.allocator;
-//     var map = std.StringHashMap(Bag).init(a);
-//     defer map.deinit();
-//     var golden_bag = Bag.init(a, "shiny gold");
-//     defer golden_bag.deinit();
-//     var olive_bag = Bag.init(a, "dark olive");
-//     defer olive_bag.deinit();
-//     try map.put(golden_bag.name, golden_bag);
-//     try map.put(olive_bag.name, olive_bag);
-
-//     var bag = map.get("shiny gold").?;
-//     print("found bag: {s}\n", .{bag.name});
-//     try bag.contains.append(Bags{ .name = olive_bag.name, .count = 1 });
-//     // print("contains: {s}\n", .{bag.contains.items[0].name});
-
-//     // if (map.get("shiny gold")) |bag| {
-//     //     print("found bag: {s}\n", .{bag.name});
-//     //     try bag.contains.append(Bags{ .name = olive_bag.name, .count = 1 });
-//     //     print("contains: {s}\n", .{bag.contains.items[0].name});
-//     // }
-
-//     // var cbag = try map.getOrPut("shiny gold");
-//     // if (cbag.found_existing) {
-//     //     try cbag.entry.value.contains.append(Bags{ .name = olive_bag.name, .count = 1 });
-//     // }
-
-//     // if (map.get("shiny gold")) |bag| {
-//     //     print("found bag: {s}\n", .{bag.name});
-//     //     print("contains: {s}\n", .{bag.contains.items[0].name});
-//     // }
-//     print("\n\n", .{});
-// }
-
-// test "ArrayList" {
-//     var a = std.testing.allocator;
-//     var list: ArrayList(u8) = ArrayList(u8).init(a);
-//     defer list.deinit();
-//     try list.append('a');
-//     try list.append('b');
-//     try list.append('c');
-//     print("\nlist: {s}\n", .{list.items});
-//     print("\n\n", .{});
-//     var bag = Bag.init(a, "golden bag");
-//     defer bag.deinit();
-//     var bag2 = Bag.init(a, "olive bag");
-//     defer bag2.deinit();
-//     try bag.contains.append(Bags{ .name = bag2.name, .count = 3 });
-//     try bag2.possibleParents.append(bag.name);
-//     print("{s}\n", .{bag2.name});
-//     print("{}\n", .{bag2.contains});
-//     print("{}\n", .{bag2.possibleParents});
-//     print("\n\n", .{});
-// }
