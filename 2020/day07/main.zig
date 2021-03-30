@@ -32,10 +32,10 @@ fn part1(alloc: *Allocator, data: []const u8) !usize {
     var lineIt = std.mem.split(data, line_ending);
     while (lineIt.next()) |line| {
         var it = std.mem.split(line, " bags ");
-        const name = line[0..it.next().?.len];
+        const color = line[0..it.next().?.len];
         // - add bag to map (if not already there) (empty)
         //
-        var gop_bag = try bagsMap.getOrPut(name);
+        var gop_bag = try bagsMap.getOrPut(color);
         if (!gop_bag.found_existing) {
             var arr_list = ArrayList([]const u8).init(alloc);
             gop_bag.entry.value = arr_list;
@@ -51,39 +51,38 @@ fn part1(alloc: *Allocator, data: []const u8) !usize {
             if (bag_iter.next()) |num_str| {
                 const n = try std.fmt.parseInt(u32, num_str, 10);
                 var rest = bag_iter.rest();
-                const contained_name = switch (n) {
+                const contained_color = switch (n) {
                     1 => rest[0 .. rest.len - 4],
                     else => rest[0 .. rest.len - 5],
                 };
                 // -- look it up in map
                 // -- if it exists, then append bag
                 // -- else add with one item bag
-                gop_bag = try bagsMap.getOrPut(contained_name);
+                gop_bag = try bagsMap.getOrPut(contained_color);
                 if (gop_bag.found_existing) {
-                    try gop_bag.entry.value.append(name);
+                    try gop_bag.entry.value.append(color);
                 } else {
                     var arr_list = ArrayList([]const u8).init(alloc);
-                    try arr_list.append(name);
+                    try arr_list.append(color);
                     gop_bag.entry.value = arr_list;
                 }
             }
         }
     }
 
-    // allparents map name->bool (set)
+    // allOuterBags map name->bool (set)
     // gold bag -> fitInside
     // - add each to allOuterBags
     // - for each, look up in map
-    // -- add all the outBags, recurse/while loop until done
+    // -- add all the outerBags, recurse/while loop until done
     var allOuterBags = StringHashMap(bool).init(alloc);
     var toCheck = ArrayList([]const u8).init(alloc);
     try toCheck.append("shiny gold");
-    while (true) {
-        const name = toCheck.popOrNull() orelse break;
-        try allOuterBags.put(name, true);
-        const outerBags = bagsMap.get(name) orelse break;
-        for (outerBags.items) |outer_name| {
-            try toCheck.append(outer_name);
+    while (toCheck.popOrNull()) |color| {
+        try allOuterBags.put(color, true);
+        const outerBags = bagsMap.get(color) orelse break;
+        for (outerBags.items) |outer_color| {
+            try toCheck.append(outer_color);
         }
     }
 
