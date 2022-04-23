@@ -17,15 +17,67 @@ class Instruction:
 
 def parse_input(data: str) -> list[Instruction]:
     instructions = []
-    for line in data.split("\n"):
+    for line in data.strip().split("\n"):
         dir_str, amount_str = line.strip().split(" ")
-        instructions.append(
-            Instruction(
-                dir=Dir(dir_str),
-                amount=int(amount_str),
+        try:
+            instructions.append(
+                Instruction(
+                    dir=Dir(dir_str),
+                    amount=int(amount_str),
+                )
             )
-        )
+        except ValueError as err:
+            print(f"Bad instruction {line!r}, {err}")
     return instructions
+
+
+def test_parse_newline() -> None:
+    """Newline should be stripped from the end."""
+    data = """forward 5
+down 5
+up 3
+"""
+
+    actual = parse_input(data)
+
+    expected = [
+        Instruction(dir=Dir.FORWARD, amount=5),
+        Instruction(dir=Dir.DOWN, amount=5),
+        Instruction(dir=Dir.UP, amount=3),
+    ]
+    assert actual == expected
+
+
+def test_parse_bad_instruction() -> None:
+    """Bad instructions should be skipped."""
+    data = """forward 5
+down 5
+up 3
+back 123
+"""
+
+    actual = parse_input(data)
+
+    expected = [
+        Instruction(dir=Dir.FORWARD, amount=5),
+        Instruction(dir=Dir.DOWN, amount=5),
+        Instruction(dir=Dir.UP, amount=3),
+    ]
+    assert actual == expected
+
+
+def test_parse_bad_instruction_no_number() -> None:
+    """Bad instructions should be skipped."""
+    data = """forward ABC
+up 3
+"""
+
+    actual = parse_input(data)
+
+    expected = [
+        Instruction(dir=Dir.UP, amount=3),
+    ]
+    assert actual == expected
 
 
 def part1(instructions: list[Instruction]) -> int:
@@ -87,7 +139,7 @@ forward 2""")
     assert actual == expected
 
 
-def main():
+def main() -> None:
     data = Path("input").read_text()
     instructions = parse_input(data)
 
