@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import List
 
 
 TEST_INPUT = """199
@@ -15,18 +14,18 @@ TEST_INPUT = """199
 """
 
 
-def parse(data: str) -> List[int]:
+def parse(data: str) -> list[int]:
     return [int(x) for x in data.split("\n") if x]
 
 
-def read_input() -> List[int]:
+def read_input() -> list[int]:
     input_file = Path(__file__).parent / "input"
     contents = input_file.read_text()
     depths = parse(contents)
     return depths
 
 
-def part1(depths: List[int]) -> int:
+def part1(depths: list[int]) -> int:
     increase_count = 0
     for i, n1 in enumerate(depths):
         try:
@@ -52,19 +51,11 @@ def test_part1_full_input() -> None:
     assert result == expected
 
 
-def part2(depths: List[int]) -> int:
+def part2(depths: list[int]) -> int:
     increase_count = 0
     for i, n1 in enumerate(depths):
         try:
-            n2 = depths[i+1]
-        except IndexError:
-            break
-        try:
-            n3 = depths[i+2]
-        except IndexError:
-            break
-        try:
-            n4 = depths[i+3]
+            n2, n3, n4 = depths[i+1],  depths[i+2], depths[i+3]
         except IndexError:
             break
 
