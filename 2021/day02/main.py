@@ -56,12 +56,46 @@ forward 2""")
     assert actual == expected
 
 
+def part2(instructions: list[Instruction]) -> int:
+    horizontal_pos = 0
+    depth = 0
+    aim = 0
+
+    for instruction in instructions:
+        if instruction.dir == Dir.FORWARD:
+            horizontal_pos += instruction.amount
+            depth += aim * instruction.amount
+        elif instruction.dir == Dir.UP:
+            aim -= instruction.amount
+        elif instruction.dir == Dir.DOWN:
+            aim += instruction.amount
+
+    return horizontal_pos * depth
+
+
+def test_part2() -> None:
+    instructions = parse_input("""forward 5
+down 5
+forward 8
+up 3
+down 8
+forward 2""")
+
+    actual = part2(instructions)
+
+    expected = 900
+    assert actual == expected
+
+
 def main():
     data = Path("input").read_text()
     instructions = parse_input(data)
 
     answer1 = part1(instructions)
     print(answer1)
+
+    answer2 = part2(instructions)
+    print(answer2)
 
 
 if __name__ == "__main__":
