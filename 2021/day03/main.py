@@ -52,13 +52,15 @@ def part2(report: str) -> int:
     lines = report.strip().split("\n")
     length = len(lines[0])
 
-    most_common = ""
-    least_common = ""
+    def make_filter(index: int, equal: bool, result: str, equal_result: str):
 
-    for position in range(length):
-        counter = Counter([x[position] for x in lines])
-        most_common += counter.most_common()[0][0]
-        least_common += counter.most_common()[-1][0]
+        def f(line: str) -> bool:
+            if equal:
+                return line[index] == equal_result
+            else:
+                return line[index] == result
+
+        return f
 
     # oxygen generator rating
     # filter to most common (ties keep values with 1)
@@ -66,44 +68,41 @@ def part2(report: str) -> int:
     ox_lines = copy(lines)
     for position in range(length):
         counter = Counter([x[position] for x in ox_lines])
-        ms_pos = counter.most_common()[0][0]
-        # [('0', 1), ('1', 1)]
         mc = counter.most_common()
-        equal = mc[0][1] == mc[1][1]
+        result = counter.most_common()[0][0]
+        equal_result = '1'
+        is_equal = mc[0][1] == mc[1][1]
+        filter_func = make_filter(
+            position,
+            is_equal,
+            result,
+            equal_result,
+        )
+        ox_lines = list(filter(filter_func, ox_lines))
 
-        def f(line: str) -> bool:
-            if equal:
-                return line[position] == '1'
-            else:
-                return line[position] == ms_pos
-
-        ox_lines = [
-            line for line in ox_lines
-            if f(line)
-        ]
         if len(ox_lines) == 1:
             ox_gen_str = ox_lines[0]
             break
 
+    # CO2 scrubber rating
+    # filter to least common (ties keep values with 0)
     co2_str = ""
     co2_lines = copy(lines)
     for position in range(length):
         counter = Counter([x[position] for x in co2_lines])
         mc = counter.most_common()
-        # [('0', 1), ('1', 1)]
-        lc_pos = mc[-1][0]
-        equal = mc[0][1] == mc[-1][1]
 
-        def f(line: str) -> bool:
-            if equal:
-                return line[position] == '0'
-            else:
-                return line[position] == lc_pos
+        result = mc[-1][0]
+        equal_result = '0'
+        is_equal = mc[0][1] == mc[-1][1]
+        filter_func = make_filter(
+            position,
+            is_equal,
+            result,
+            equal_result,
+        )
+        co2_lines = list(filter(filter_func, co2_lines))
 
-        co2_lines = [
-            line for line in co2_lines
-            if f(line)
-        ]
         if len(co2_lines) == 1:
             co2_str = co2_lines[0]
             break
