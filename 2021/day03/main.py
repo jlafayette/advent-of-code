@@ -48,66 +48,58 @@ def test_part1_actual_data():
     assert actual == expected
 
 
-def part2(report: str) -> int:
-    lines = report.strip().split("\n")
-    length = len(lines[0])
+class BitCriteria:
+    def __init__(self, length: int, most_common: bool, tie_result: str) -> None:
+        self.length = length
+        self.most_common = most_common
+        self.tie_result = tie_result
 
-    def make_filter(index: int, equal: bool, result: str, equal_result: str):
+    def _make_filter(self, index: int, equal: bool, result: str):
 
         def f(line: str) -> bool:
             if equal:
-                return line[index] == equal_result
+                return line[index] == self.tie_result
             else:
                 return line[index] == result
 
         return f
 
-    # oxygen generator rating
-    # filter to most common (ties keep values with 1)
-    ox_gen_str = ""
-    ox_lines = copy(lines)
-    for position in range(length):
-        counter = Counter([x[position] for x in ox_lines])
-        mc = counter.most_common()
-        result = counter.most_common()[0][0]
-        equal_result = '1'
-        is_equal = mc[0][1] == mc[1][1]
-        filter_func = make_filter(
-            position,
-            is_equal,
-            result,
-            equal_result,
-        )
-        ox_lines = list(filter(filter_func, ox_lines))
+    def find(self, lines: list[str]) -> int:
+        result_line = ""
+        lines = copy(lines)
 
-        if len(ox_lines) == 1:
-            ox_gen_str = ox_lines[0]
-            break
+        for position in range(self.length):
+            counter = Counter([x[position] for x in lines])
 
-    # CO2 scrubber rating
-    # filter to least common (ties keep values with 0)
-    co2_str = ""
-    co2_lines = copy(lines)
-    for position in range(length):
-        counter = Counter([x[position] for x in co2_lines])
-        mc = counter.most_common()
+            mc = counter.most_common()
+            if self.most_common:
+                result = mc[0][0]
+                is_equal = mc[0][1] == mc[1][1]
+            else:  # least common
+                result = mc[-1][0]
+                is_equal = mc[0][1] == mc[-1][1]
 
-        result = mc[-1][0]
-        equal_result = '0'
-        is_equal = mc[0][1] == mc[-1][1]
-        filter_func = make_filter(
-            position,
-            is_equal,
-            result,
-            equal_result,
-        )
-        co2_lines = list(filter(filter_func, co2_lines))
+            filter_func = self._make_filter(position, is_equal, result)
+            lines = list(filter(filter_func, lines))
 
-        if len(co2_lines) == 1:
-            co2_str = co2_lines[0]
-            break
+            if len(lines) == 1:
+                result_line = lines[0]
+                break
 
-    return int(ox_gen_str, base=2) * int(co2_str, base=2)
+        return int(result_line, base=2)
+
+
+def part2(report: str) -> int:
+    lines = report.strip().split("\n")
+    length = len(lines[0])
+
+    oxygen_criteria = BitCriteria(length, most_common=True, tie_result='1')
+    oxygen_generator_rating = oxygen_criteria.find(lines)
+
+    co2_criteria = BitCriteria(length, most_common=False, tie_result='0')
+    co2_scrubber_rating = co2_criteria.find(lines)
+
+    return oxygen_generator_rating * co2_scrubber_rating
 
 
 def test_part2():
