@@ -83,12 +83,32 @@ def part2(report: str) -> int:
         ]
         if len(ox_lines) == 1:
             ox_gen_str = ox_lines[0]
+            break
 
-    # TODO: calculate CO2 scrubber rating
-    # ...
+    co2_str = ""
+    co2_lines = copy(lines)
+    for position in range(length):
+        counter = Counter([x[position] for x in co2_lines])
+        mc = counter.most_common()
+        # [('0', 1), ('1', 1)]
+        lc_pos = mc[-1][0]
+        equal = mc[0][1] == mc[-1][1]
 
-    # return int(most_common, base=2) * int(least_common, base=2)
-    return 0
+        def f(line: str) -> bool:
+            if equal:
+                return line[position] == '0'
+            else:
+                return line[position] == lc_pos
+
+        co2_lines = [
+            line for line in co2_lines
+            if f(line)
+        ]
+        if len(co2_lines) == 1:
+            co2_str = co2_lines[0]
+            break
+
+    return int(ox_gen_str, base=2) * int(co2_str, base=2)
 
 
 def main() -> None:
@@ -97,8 +117,8 @@ def main() -> None:
     answer1 = part1(report)
     print(answer1)  # 2972336
 
-    answer2 = part2(TEST_INPUT)
-    print(answer2)  #
+    answer2 = part2(report)
+    print(answer2)  # 3368358
 
 
 if __name__ == "__main__":
