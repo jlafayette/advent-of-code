@@ -111,6 +111,22 @@ def part2(report: str) -> int:
     return int(ox_gen_str, base=2) * int(co2_str, base=2)
 
 
+def test_part2():
+    actual = part2(TEST_INPUT)
+
+    expected = 230
+    assert actual == expected
+
+
+def test_part2_actual_data():
+    report = Path("input.txt").read_text()
+
+    actual = part2(report)
+
+    expected = 3368358
+    assert actual == expected
+
+
 def main() -> None:
     report = Path("input.txt").read_text()
 
