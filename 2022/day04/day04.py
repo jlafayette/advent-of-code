@@ -27,13 +27,6 @@ def read_input():
     return [parse_line(line) for line in lines]
 
 
-def score(letter: str):
-    if letter.islower():
-        return ord(letter) - ord('a') + 1
-    else:
-        return ord(letter) - ord('A') + 27
-
-
 def _contains(l1, l2):
     a1, a2 = l1
     b1, b2 = l2
@@ -51,7 +44,6 @@ def part1():
         if contains_sublist(elf1, elf2):
             total += 1
     print(total)
-
 
 
 def overlap(a, b):
