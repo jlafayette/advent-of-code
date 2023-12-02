@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 
@@ -74,18 +73,13 @@ def part2(data):
         min_blue = 0
 
         pre, post = game.split(":")
-        id = int(pre.split()[-1])
 
         for draw in post.split(";"):
             draw = draw.strip()
-            # print(draw)
-            draw_possible = True
             for color in draw.split(","):
                 count, color = color.strip().split(" ")
                 count = int(count)
                 color = color.strip()
-                # print("  ", count, color)
-
                 if color == "red":
                     min_red = max(min_red, count)
                 elif color == "green":
