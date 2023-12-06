@@ -257,6 +257,20 @@ def f(seed: int) -> int:
     return x
 
 
+breakpoints: set[int] = set()
+
+
+def get_breakpoints() -> set[int]:
+    result = set()
+    for m in maps:
+        for r in m.ranges:
+            result.add(r.src_start)
+            result.add(r.src_start+r.range_len-1)
+            result.add(r.dst_start)
+            result.add(r.dst_start+r.range_len-1)
+    return result
+
+
 class R:
     def __init__(self, lo, hi):
         self.lo = lo
@@ -265,6 +279,8 @@ class R:
     def continuous(self) -> bool:
         if self.lo == self.hi:
             return True
+        if self.lo in breakpoints or self.hi in breakpoints:
+            return False
         diff = self.hi - self.lo
         return f(self.hi) - f(self.lo) == diff
 
@@ -285,15 +301,33 @@ def break_all(r: R) -> list[R]:
         return [r]
     else:
         r1, r2 = break_r(r)
-        print(f"broke {r} -> {r1}, {r2}")
+        # print(f"broke {r} -> {r1}, {r2}")
         return break_all(r1) + break_all(r2)
 
 
+def join_all(rs: list[R]) -> list[R]:
+    new_rs = []
+    cr = rs[0]
+    for next_r in rs[1:]:
+        p = R(cr.lo, next_r.hi)
+        if p.continuous():
+            cr = p
+        else:
+            new_rs.append(cr)
+            cr = next_r
+    new_rs.append(cr)
+    return new_rs
+
+
 def break_ranges(data):
+    lowest = sys.maxsize
+
     sections = data.strip().split("\n\n")
     seeds = [int(x) for x in sections[0].strip().split(": ")[-1].split(" ")]
     global maps
     maps = [Map(m) for m in sections[1:]]
+    global breakpoints
+    breakpoints = get_breakpoints()
     for start, len_ in pairs(seeds):
         print(start, len_)
         for i in range(start, start+len_):
@@ -309,13 +343,70 @@ def break_ranges(data):
                 print("  ", x, "->", f(x))
         print("\n")
 
+        ranges = join_all(ranges)
+        print([str(r) for r in ranges])
+        for r in ranges:
+            print(r)
+            for x in range(r.lo, r.hi + 1):
+                print("  ", x, "->", f(x))
+        print("\n")
 
-break_ranges(DATA2)
+        print("-----------------------\n")
+
+        for r in ranges:
+            lowest = min(lowest, f(r.lo))
+
+    print(breakpoints)
+    print(len(breakpoints))
+    print(lowest)
+
+
+# break_ranges(DATA2)
+
+
+def part2_3(data):
+    lowest = sys.maxsize
+
+    sections = data.strip().split("\n\n")
+    seeds = [int(x) for x in sections[0].strip().split(": ")[-1].split(" ")]
+    global maps
+    maps = [Map(m) for m in sections[1:]]
+    global breakpoints
+    breakpoints = get_breakpoints()
+    for start, len_ in pairs(seeds):
+        print(start, len_)
+        # for i in range(start, start+len_):
+        #     print(i, "", end="")
+        # print("")
+        lo = start
+        hi = start+len_-1
+        ranges = break_all(R(lo, hi))
+        # print([str(r) for r in ranges])
+        # for r in ranges:
+        #     print(r)
+        #     for x in range(r.lo, r.hi+1):
+        #         print("  ", x, "->", f(x))
+        # print("\n")
+
+        ranges = join_all(ranges)
+        # print([str(r) for r in ranges])
+        # for r in ranges:
+        #     print(r)
+        #     for x in range(r.lo, r.hi + 1):
+        #         print("  ", x, "->", f(x))
+        # print("\n")
+        #
+        # print("-----------------------\n")
+
+        for r in ranges:
+            lowest = min(lowest, f(r.lo))
+
+    print(breakpoints)
+    print(len(breakpoints))
+    print(lowest)
 
 
 # part1(DATA)
 # part1(INPUT)
-# part2_2(DATA2)
-# part2_2(INPUT)
-
-
+part2_3(DATA2)
+part2_3(INPUT)
