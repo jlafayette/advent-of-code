@@ -6,7 +6,7 @@ INPUT = (Path(__file__).absolute().parent / "input").read_text().strip()
 
 
 DATA = """\
-/
+\
 """
 
 
