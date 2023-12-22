@@ -1,4 +1,6 @@
 import dataclasses
+import os
+import sys
 from pathlib import Path
 
 
@@ -98,7 +100,6 @@ XXX = (XXX, XXX)\
 
 def part2(data):
     dirs, lookup = parse(data)
-    steps = 0
 
     starting_nodes = [
         node for node in lookup.values() if node.tag.endswith("A")
@@ -136,8 +137,59 @@ def part2(data):
     print("Steps:", steps)
 
 
-part1(DATA)
-part1(DATA2)
-part1(INPUT)
-part2(DATA3)
+def experiment(data):
+    dirs, lookup = parse(data)
+
+    starting_nodes = [
+        node for node in lookup.values() if node.tag.endswith("A")
+    ]
+    acc = []
+
+    for starting_node in starting_nodes:
+
+        def f():
+            c = starting_node
+            prev = set()
+            steps = 0
+            print(starting_node.tag)
+            zzzs = 0
+            zzzs_step = []
+            cycle_found = False
+            while True:
+                for i, d in enumerate(dirs):
+                    id_ = i, c.tag
+                    if c.tag.endswith("Z"):
+                        print(f"  Z at step {steps}, {id_}")
+                        zzzs += 1
+                        zzzs_step.append(steps)
+                    if zzzs >= 3:
+                        a, b, c = zzzs_step
+                        print("  ", c - b, b - a)
+                        acc.append(c - b)
+                        return
+                    if not cycle_found and id_ in prev:
+                        print("  found cycle",  id_, "steps:", steps)
+                        cycle_found = True
+                    prev.add(id_)
+                    if d == "L":
+                        c = c.lf
+                    elif d == "R":
+                        c = c.rt
+                    else:
+                        sys.exit(1)
+                    steps += 1
+
+        f()
+
+    print(acc)
+    import math
+    print(math.lcm(*acc))
+
+
+# part1(DATA)
+# part1(DATA2)
+# part1(INPUT)
+# part2(DATA3)
 # part2(INPUT)  # probably won't complete in my lifetime :(
+experiment(DATA3)
+experiment(INPUT)
