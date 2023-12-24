@@ -1,7 +1,9 @@
 import dataclasses
+import queue
+from queue import Queue
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 
 @dataclasses.dataclass
@@ -62,6 +64,13 @@ class Grid:
         except IndexError:
             return None
 
+    def find_s(self) -> Loc:
+        for y, row in enumerate(self.rows()):
+            for x, char in enumerate(row):
+                if char == "S":
+                    return Loc(x, y, "S")
+        raise ValueError("No S location found")
+
     def rows(self):
         yield from self._g
 
@@ -112,14 +121,7 @@ class Grid:
 def part1(data):
     grid = Grid(data)
 
-    def find_s() -> Loc:
-        for y, row in enumerate(grid.rows()):
-            for x, char in enumerate(row):
-                if char == "S":
-                    return Loc(x, y, "S")
-        raise ValueError("No S location found")
-
-    s_loc = find_s()
+    s_loc = grid.find_s()
     print(s_loc)
 
     # follow pipes around until next is already visited
@@ -174,12 +176,176 @@ def part1(data):
     print("Distance:", distance)
 
 
+DATA2_1 = """\
+...........
+.S-------7.
+.|F-----7|.
+.||.....||.
+.||.....||.
+.|L-7.F-J|.
+.|..|.|..|.
+.L--J.L--J.
+...........\
+"""
+
+
+class Grid2(Grid):
+    def __init__(self, data):
+        self._data = data
+        super(Grid2, self).__init__(data)
+        self.s = self.find_s()
+        self._visited: set[tuple[int, int]] = set()
+        self._conn: set[tuple[int, int, int, int]] = set()
+
+    def find_s_connections(self) -> tuple[DirLoc, DirLoc]:
+        conns: list[Loc] = list()
+        sx = self.s.x
+        sy = self.s.y
+        up = self.get(sx, sy - 1)
+        if up and up.type in "|7F":
+            conns.append(up)
+        down = self.get(sx, sy + 1)
+        if down and down.type in "|LJ":
+            conns.append(down)
+        left = self.get(sx - 1, sy)
+        if left and left.type in "-FL":
+            conns.append(left)
+        right = self.get(sx + 1, sy)
+        if right and right.type in "-7J":
+            conns.append(right)
+        assert len(conns) == 2
+        a, b = conns
+        return DirLoc.from_loc(a, self.s), DirLoc.from_loc(b, self.s)
+
+    def mark_conn(self, a, b):
+        self._conn.add((a.x, a.y, b.x, b.y))
+        self._conn.add((b.x, b.y, a.x, a.y))
+
+    def is_conn(self, a, b):
+        return (a.x, a.y, b.x, b.y) in self._conn
+
+    def mark_visited(self, loc: Loc | DirLoc):
+        self._visited.add((loc.x, loc.y))
+
+    def visited(self, loc: Loc | DirLoc) -> bool:
+        return (loc.x, loc.y) in self._visited
+
+    def debug_print(self):
+        out = ""
+        for y, row in enumerate(self.rows()):
+            for x, char in enumerate(row):
+                if (x, y) in self._visited:
+                    out += "O"
+                else:
+                    out += "."
+            out += "\n"
+        # print(out)
+        # (Path(__file__).absolute().parent / "debug").write_text(out)
+
+    def flood_fill(self):
+        # do a flood fill from 0,0 corner along edges
+        def f(x, y):
+            if x <= len(self._g[0]):
+                q.put((x, y, x+1, y))
+            if x > 0:
+                q.put((x, y, x-1, y))
+            if y <= len(self._g):
+                q.put((x, y, x, y+1))
+            if y > 0:
+                q.put((x, y, x, y-1))
+
+        c = (0, 0)
+        q = queue.SimpleQueue()
+        visited: set[tuple[int, int, int, int]] = set()
+        corners: set[tuple[int, int]] = set()
+        f(*c)
+        while True:
+            try:
+                edge = q.get_nowait()
+                # print(edge)
+            except queue.Empty:
+                break
+            if edge in visited:
+                continue
+            x1, y1, x2, y2 = edge
+            visited.add((x1, y1, x2, y2))
+            visited.add((x2, y2, x1, y1))
+
+            # does edge cross a pipe edge?
+            """
+            ._._._.
+            | | | |
+            ._._._.
+            | | | |
+            ._._._.
+            """
+            horizontal = y1 == y2
+            if horizontal:
+                sx, sy = min(x1, x2), y1-1
+                ex, ey = min(x1, x2), y1
+            else:
+                assert x1 == x2
+                sx, sy = x1-1, min(y1, y2)
+                ex, ey = x1, min(y1, y2)
+            if (sx, sy, ex, ey) in self._conn:
+                # would cross a pipe, discard
+                # print("discard")
+                continue
+            # else:
+            #     print((sx, sy, ex, ey), "not in conn")
+
+            corners.add((x1, y1))
+            corners.add((x2, y2))
+            f(x2, y2)
+
+        # debug print flood fill
+        out = ""
+        inside_count = 0
+        for y, row in enumerate(self.rows()):
+            for x, char in enumerate(row):
+                if (
+                    (x, y) in corners and
+                    (x+1, y) in corners and
+                    (x, y+1) in corners and
+                    (x+1, y+1) in corners
+                ):
+                    out += "."
+                elif (x, y) in self._visited:
+                    out += self.get(x, y).type
+                else:
+                    out += "I"
+                    inside_count += 1
+            out += "\n"
+        # print(out)
+        (Path(__file__).absolute().parent / "debug").write_text(out)
+        print("Inside count:", inside_count)
+
+
 def part2(data):
-    ...
+    grid = Grid2(data)
+    grid.mark_visited(grid.s)
+    c1, c2 = grid.find_s_connections()
+    grid.mark_conn(grid.s, c1)
+    grid.mark_conn(grid.s, c2)
+    grid.mark_visited(c1)
+    grid.mark_visited(c2)
+    while True:
+        # find next conn of c1
+        next_c1 = grid.find_second_conn(c1)
+        grid.mark_conn(c1, next_c1)
+        grid.mark_visited(next_c1)
+        if next_c1.x == c2.x and next_c1.y == c2.y:
+            break
+        c1 = next_c1
+
+    grid.debug_print()
+
+    # do a flood fill from 0,0 corner along edges
+    grid.flood_fill()
 
 
 # part1(DATA)
 # part1(DATA2)
-part1(INPUT)
-# part2(DATA)
-# part2(INPUT)
+# part1(INPUT)
+part2(DATA2_1)
+part2(INPUT)
