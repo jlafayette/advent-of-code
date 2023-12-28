@@ -169,12 +169,97 @@ def part1(data):
     print("Total:", total)
 
 
+class Part2:
+    def __init__(self, data):
+        self.data = data
+
+    @staticmethod
+    def t(line: str, expected: bool):
+        actual = conditions_match_groups(parse(line))
+        if actual != expected:
+            print(f"F got {actual}, expected {expected}")
+            print(f"  {line}")
+        else:
+            print("P")
+
+    @staticmethod
+    def parse(line):
+        a, b = line.split(" ", 1)
+        a = "?".join([a]*5)
+        statuses = [char for char in a]
+        b = ",".join([b]*5)
+        groups = [int(x) for x in b.split(",")]
+        return statuses, groups
+
+    def solve(self, line):
+        statuses, grps = self.parse(line)
+        return self.r_solve(statuses, grps, 0)
+
+    @staticmethod
+    def _take_next_grp(statuses: list[str]) -> tuple[int, list[str]]:
+        qs = 0
+        for i, ch in enumerate(statuses):
+            if ch == "?":
+                qs += 1
+            else:
+                if qs:
+                    return qs, statuses[i+1:]
+        else:
+            return 0, statuses
+
+    def r_solve(self, statuses: list[str], grps: list[int], damaged: int):
+        # take first ? group
+        ss = ""
+        while True:
+            ss, *statuses = statuses
+            if ss == "?":
+                break
+            if not statuses:
+                # done
+                if not grps:
+                    return 1
+                else:
+                    return 0
+
+        if not grps:
+            return 0
+
+        # solve rest with both '.' and '#'
+        a_statuses = ["."] + statuses
+        b_statuses = ["#"] + statuses
+        a_damaged = 0
+        b_damaged = damaged + 1
+        a_arrs = self.r_solve(statuses, grps, a_damaged)
+
+        # split group possibilities
+        if b_damaged >= grps[0]:
+            ...
+
+        # add solutions together
+        ...
+
+    def r_solve_multi(self, statuses: list[str], possible_grps: list[list[int]]):
+        total = 0
+        for grps in possible_grps:
+            total += self.r_solve(statuses, grps)
+        return total
+
+    def __call__(self, *args, **kwargs):
+        print("part2")
+        line = ".# 1"
+        statuses, groups = parse(line)
+        assert statuses == [ch for ch in ".#?.#?.#?.#?.#"]
+        assert groups == [1, 1, 1, 1, 1]
+
+        statuses = "?###????????"
+
+
 def part2(data):
-    ...
+    Part2(data)()
 
 
 # part1(NO_UNKNOWNS)
-part1(DATA)
-part1(INPUT)
+# part1(DATA)
+# part1(INPUT)
 # part2(DATA)
 # part2(INPUT)
