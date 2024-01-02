@@ -72,14 +72,12 @@ SizePossibilities = dict[int, list[tuple[int, int]]]
 
 
 class Row:
-    grps: list[Grp]
-    max_grp: int
     debug_place = -1
 
-    def __init__(self, items: list[Item], resolve=False):
+    def __init__(self, items: list[Item], grps: list[int]):
+        self.grps = grps
+        self.max_grp = max(grps)
         self.items = self.glue(items)
-        if resolve:
-            self.resolve()
 
     @staticmethod
     def glue(items: list[Item]):
@@ -108,7 +106,10 @@ class Row:
         return new
 
     def max_br(self) -> int:
-        return max([n for (n, ch) in self.items if ch == BR])
+        try:
+            return max([n for (n, ch) in self.items if ch == BR])
+        except ValueError:
+            return 0
 
     def enumerate(self):
         for i, (n, ch) in enumerate(self.items):
@@ -357,7 +358,7 @@ class Row:
 
         return True
 
-    def grp_size_possibilities_1(self) -> dict[int, list[tuple[int, int]]]:
+    def grp_size_options_1(self) -> dict[int, list[tuple[int, int]]]:
         sizes = set(self.grps)
         result = {}
         for size in sizes:
@@ -395,7 +396,7 @@ class Row:
             result[size] = ranges
         return result
 
-    def grp_size_possibilities_1_narrowed(self, size_possibilities: SizePossibilities) -> SizePossibilities:
+    def grp_size_options_1_narrowed(self, size_possibilities: SizePossibilities) -> SizePossibilities:
         # find
         result = {}
 
@@ -451,8 +452,8 @@ class Row:
         # in this example, all '?##' can be resolved
         grp_counter = Counter(self.grps)
 
-        size_possibilities = self.grp_size_possibilities_1()
-        size_possibilities = self.grp_size_possibilities_1_narrowed(size_possibilities)
+        size_possibilities = self.grp_size_options_1()
+        size_possibilities = self.grp_size_options_1_narrowed(size_possibilities)
 
         for size, possibilities in size_possibilities.items():
             if len(possibilities) == grp_counter[size]:
@@ -466,7 +467,7 @@ class Row:
                         try:
                             (n, ch) = self.items[index]
                         except IndexError:
-                            print("  IndexError")
+                            # print("  IndexError")
                             pass
                         else:
                             if ch == UN:
@@ -474,6 +475,90 @@ class Row:
                                 self.items[index] = (n, OP)
 
         self.items = self.glue(self.items)
+
+    def sub_rows(self) -> list["Row"]:
+        grp_counter = Counter(self.grps)
+        size_options = self.grp_size_options_1()
+        size_options = self.grp_size_options_1_narrowed(size_options)
+
+        sections: list[tuple[list[Item], list[int]]] = []
+
+        for size, options in size_options.items():
+            if len(options) != grp_counter[size]:
+                continue
+
+            grp_i = self.grps.index(size)+1
+            grp_acc = self.grps[:grp_i]
+            item_i = 0
+
+            for enumerate_i, (st_i, end_i) in enumerate(options):
+                last_iter = enumerate_i == len(options)-1
+
+                for i in range(st_i, end_i):
+                    (n, ch) = self.items[i]
+                    self.items[i] = (n, BR)
+                # Item before and after BR segment must be OP
+                for index in [st_i-1, end_i]:
+                    try:
+                        (n, ch) = self.items[index]
+                    except IndexError:
+                        print("  IndexError")
+                        pass
+                    else:
+                        if ch == UN:
+                            assert n == 1
+                            self.items[index] = (n, OP)
+
+                # handle existing acc unless it's fully resolved
+                # if item_acc:
+                #     assert len(grp_acc) > 0
+                #     sections.append((item_acc, grp_acc))
+                item_acc = self.items[item_i:end_i]
+                item_i = end_i
+                if grp_acc:
+                    assert len(item_acc) > 0
+                    sections.append((item_acc, grp_acc))
+
+                # add to item and grp acc
+                try:
+                    new_grp_i = self.grps[grp_i:].index(size) + 1 + grp_i
+                except ValueError:
+                    grp_acc = self.grps[grp_i:]
+                else:
+                    grp_acc = self.grps[grp_i:new_grp_i]
+                    grp_i = new_grp_i
+
+                if last_iter:
+                    item_acc = self.items[item_i:]
+                    assert len(item_acc) > 0
+                    assert len(grp_acc) > 0
+                    sections.append((item_acc, grp_acc))
+
+            # TODO: allow locking in multiple sizes, but only split into
+            #       sub problems on the largest size?
+            break
+
+        # merge sections that are fully resolved into the next one
+        final_sections = []
+        item_acc = []
+        grp_acc = []
+        for section1 in sections:
+            items, grps = section1
+            item_acc.extend(items)
+            grp_acc.extend(grps)
+            fully_resolved = True
+            for (n, ch) in items:
+                if ch == UN:
+                    fully_resolved = False
+                    break
+            if not fully_resolved:
+                final_sections.append((item_acc, grp_acc))
+                item_acc = []
+                grp_acc = []
+        if item_acc or grp_acc:
+            final_sections.append((item_acc, grp_acc))
+
+        return [Row(items, grps) for items, grps, in final_sections]
 
     def __str__(self):
         items = "".join([ch*n for (n, ch) in self.items])
@@ -499,7 +584,7 @@ def miosis(row: Row, item_index: int, sub_index: int) -> list[Row]:
         if sub_after:
             new_items.append((len(sub_after), UN))
         new_items = before + new_items + after
-        results.append(Row(new_items, resolve=True))
+        results.append(Row(new_items, row.grps, resolve=True))
     return results
 
 
@@ -539,10 +624,10 @@ def mutate(row: Row) -> list[Row]:
                 print(str(row))
                 Row.debug_place = i
             break
-    return [Row(a_items, resolve=True), Row(b_items, resolve=True)]
+    return [Row(a_items, row.grps, resolve=True), Row(b_items, row.grps, resolve=True)]
 
 
-def parse(line, unfold=True, resolve=False) -> Row:
+def parse(line, unfold=True) -> Row:
     logger.debug(f"parsing line: {line}")
     a, b = line.split(" ", 1)
     if unfold:
@@ -579,13 +664,11 @@ def parse(line, unfold=True, resolve=False) -> Row:
         else:
             result.append((acc, last_ch))
 
-    Row.grps = groups
-    Row.max_grp = max(groups)
-    return Row(result, resolve=resolve)
+    return Row(result, groups)
 
 
 def solve(line: str):
-    row_orig = parse(line, resolve=True)
+    row_orig = parse(line)
     result = r_solve(row_orig)
     print(str(row_orig))
     print("  ", result)
@@ -704,8 +787,8 @@ def part2(data):
     # assert 16384 == solve(".??..??...?##. 1,1,3")
     # assert 1 == solve("?#?#?#?#?#?#?#? 1,3,1,6")
     # assert 16 == solve("????.#...#... 4,1,1")
-    assert 2500 == solve("????.######..#####. 1,6,5")
-    # _ = solve("?###???????? 3,2,1")  # 506250
+    # assert 2500 == solve("????.######..#####. 1,6,5")
+    _ = solve("?###???????? 3,2,1")  # 506250
 
 
 if __name__ == "__main__":
@@ -731,6 +814,10 @@ def test_solve_example4():
 
 def test_solve_example5():
     assert 2500 == solve("????.######..#####. 1,6,5")
+
+
+def test_solve_example6():
+    assert 506250 == solve("?###???????? 3,2,1")
 
 
 def test_parse1():
@@ -788,5 +875,14 @@ def test_sub_problem():
 
     sub_rows = row.sub_rows()
     assert len(sub_rows) == 5
-    for sub_row in sub_rows:
-        assert str(sub_row) == "???????? 2,1"
+    assert str(sub_rows[0]) == ".###.????????.### 3,2,1,3"
+    assert str(sub_rows[1]) == ".????????.### 2,1,3"
+    assert str(sub_rows[2]) == ".????????.### 2,1,3"
+    assert str(sub_rows[3]) == ".????????.### 2,1,3"
+    assert str(sub_rows[4]) == ".??????? 2,1"
+
+    # total = 0
+    # for row in sub_rows:
+    #     x = r_solve(row)
+    #     total = total * x
+    # assert total == 506250
