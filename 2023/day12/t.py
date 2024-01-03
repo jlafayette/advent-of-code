@@ -8,7 +8,7 @@ from typing import Literal, Optional
 from pathlib import Path
 
 
-logging.basicConfig(level=logging.WARNING, format="{message}", style='{')
+logging.basicConfig(level=logging.INFO, format="{message}", style='{')
 logger = logging.getLogger()
 
 
@@ -75,16 +75,68 @@ SizePossibilities = dict[int, list[tuple[int, int]]]
 class Row:
     debug_place = -1
 
-    def __init__(self, items: list[Item], grps: list[int]):
+    def __init__(self, items: list[Item], grps: list[int], use_new_glue=False):
         self.grps = grps
         if grps:
             self.max_grp = max(grps)
         else:
             self.max_grp = 0
-        self.items = self.glue(items)
+        if use_new_glue:
+            self.items = self._glue2(items)
+        else:
+            self.items = self.glue(items)
+
+    def glue(self, items: list[Item]):
+        new1 = self._glue1(items)
+        # new2 = self._glue2(items)
+        # if new1 != new2:
+        #     breakpoint()
+        return new1
+    
+    @staticmethod
+    def _glue1(items: list[Item]):
+        new = []
+        acc_n, acc_ch = 0, OP
+        for (n, ch) in items:
+            if ch != acc_ch:
+                if acc_n:
+                    if acc_ch == UN:
+                        for _ in range(acc_n):
+                            new.append((1, acc_ch))
+                    else:
+                        # if acc_ch == OP:
+                        #     acc_n = 1
+                        new.append((acc_n, acc_ch))
+                    acc_n = n
+                else:
+                    acc_n += n
+                acc_ch = ch
+            else:
+                acc_n += n
+        if acc_n:
+            if acc_ch == UN:
+                for _ in range(acc_n):
+                    new.append((1, acc_ch))
+            else:
+                # if acc_ch == OP:
+                #     acc_n = 1
+                new.append((acc_n, acc_ch))
+        # if len(new) >= 2:
+        #     start_index = 0
+        #     (n, ch) = new[0]
+        #     if ch == OP:
+        #         start_index = 1
+        #     end_index = len(new)
+        #     (n, ch) = new[-1]
+        #     if ch == OP:
+        #         end_index = -1
+        #     new = new[start_index:end_index]
+
+        return new
+
 
     @staticmethod
-    def glue(items: list[Item]):
+    def _glue2(items: list[Item]):
         new = []
         acc_n, acc_ch = 0, OP
         for (n, ch) in items:
@@ -111,16 +163,16 @@ class Row:
                 if acc_ch == OP:
                     acc_n = 1
                 new.append((acc_n, acc_ch))
-        # if len(new) >= 2:
-        #     start_index = 0
-        #     (n, ch) = new[0]
-        #     if ch == OP:
-        #         start_index = 1
-        #     end_index = len(new)
-        #     (n, ch) = new[-1]
-        #     if ch == OP:
-        #         end_index = -1
-        #     new = new[start_index:end_index]
+        if len(new) >= 2:
+            start_index = 0
+            (n, ch) = new[0]
+            if ch == OP:
+                start_index = 1
+            end_index = len(new)
+            (n, ch) = new[-1]
+            if ch == OP:
+                end_index = -1
+            new = new[start_index:end_index]
 
         return new
 
@@ -495,29 +547,23 @@ class Row:
 
         self.items = self.glue(self.items)
 
-
-
-
     def __str__(self):
         items = "".join([ch*n for (n, ch) in self.items])
         grps = ",".join([str(x) for x in self.grps])
         return " ".join([items, grps])
 
     def __hash__(self):
-        # h = 0
-        # for i, (n, ch) in enumerate(self.items):
-        #     h += ord(ch) * n * i
-        # for i, grp in enumerate(self.grps):
-        #     h += i * grp
-        h = hash(str(self))
-        return h
+        items = "".join([ch*n for (n, ch) in self._glue2(self.items)])
+        grps = ",".join([str(x) for x in self.grps])
+        s = " ".join([items, grps])
+        return hash(s)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
 
 
 @functools.lru_cache(maxsize=1000)
-def sub_rows(self: Row) -> list[Row]:
+def sub_rows(self: Row, use_new_glue=False) -> list[Row]:
     if not self.grps:
         return [self]
     grp_counter = Counter(self.grps)
@@ -638,12 +684,12 @@ def sub_rows(self: Row) -> list[Row]:
         final_sections.append((item_acc, grp_acc))
 
     if final_sections:
-        return [Row(items, grps) for items, grps, in final_sections]
+        return [Row(items, grps, use_new_glue=use_new_glue) for items, grps, in final_sections]
     else:
         return [self]
 
 
-def mutate(row: Row) -> list[Row]:
+def mutate(row: Row, use_new_glue=False) -> list[Row]:
     a_items: list[Item] = []
     b_items: list[Item] = []
 
@@ -670,10 +716,10 @@ def mutate(row: Row) -> list[Row]:
                 logger.debug(str(row))
                 Row.debug_place = i
             break
-    return [Row(a_items, row.grps), Row(b_items, row.grps)]
+    return [Row(a_items, row.grps, use_new_glue=use_new_glue), Row(b_items, row.grps, use_new_glue=use_new_glue)]
 
 
-def parse(line, unfold=True) -> Row:
+def parse(line, unfold=True, use_new_glue=False) -> Row:
     logger.debug(f"parsing line: {line}")
     a, b = line.split(" ", 1)
     if unfold:
@@ -710,19 +756,19 @@ def parse(line, unfold=True) -> Row:
         else:
             result.append((acc, last_ch))
 
-    return Row(result, groups)
+    return Row(result, groups, use_new_glue=use_new_glue)
 
 
-def solve(line: str):
-    row_orig = parse(line)
-    result = r_solve(row_orig)
+def solve(line: str, use_new_glue=False):
+    row_orig = parse(line, use_new_glue=use_new_glue)
+    result = r_solve(row_orig, use_new_glue=use_new_glue)
     logger.warning(f"line: {row_orig!s}\n\ttotal: {result}")
     return result
 
 
 @functools.lru_cache(maxsize=1000)
-def r_solve(row_orig: Row) -> int:
-    rows = sub_rows(row_orig)
+def r_solve(row_orig: Row, use_new_glue=False) -> int:
+    rows = sub_rows(row_orig, use_new_glue=False)
     if len(rows) == 0:
         logger.warning(f"sub: {row_orig!s}\n\ttotal: {0}")
         return 0
@@ -764,41 +810,41 @@ def r_solve(row_orig: Row) -> int:
                 break
         row_q_index, row = q_result
         assert isinstance(row, Row)
-        # print(f"fresh off the stack: {str(row)}")
+        logger.debug(f"! (pop) stack: {str(row)}")
 
         if row.fully_resolved():
             if row.is_valid():
-                # print(f"totally valid row: {str(row)}")
+                logger.debug(f"VV valid row: {str(row)}")
                 total += 1
             continue
 
         # solve rest with both '.' and '#'
-        # print(f"-- before mutate of row {str(row)}")
-        for child in mutate(row):
-            # print(f"child: {str(child)}")
+        logger.debug(f"-- before mutate of row {str(row)}")
+        for child in mutate(row, use_new_glue=use_new_glue):
+            logger.debug(f"  child: {str(child)}")
             if child.might_work():
 
-                rows = sub_rows(child)
+                rows = sub_rows(child, use_new_glue=use_new_glue)
                 if len(rows) == 0:
-                    # print("rejected (sub_rows())")
-                    # print("  ", str(child))
+                    logger.debug("    rejected (sub_rows())")
+                    logger.debug(f"    {child!s}")
                     rejected_count += 1
                 elif len(rows) == 1:
                     swap_q.put((row_q_index + 1, rows[0]))
                 else:
                     sub_total = 1
                     for row in rows:
-                        # print("  sub", str(row))
+                        logger.debug(f"      sub {row!s}")
                         sub_total *= r_solve(row)
                     total += sub_total
                 maybe_valid_count += 1
             else:
-                # print("rejected")
-                # print("  ", str(child))
+                logger.debug("  rejected")
+                logger.debug(f"  {child!s}")
                 rejected_count += 1
 
-    # print(f"maybe valid: {maybe_valid_count}")
-    # print(f"rejected: {rejected_count}")
+    logger.debug(f"maybe valid: {maybe_valid_count}")
+    logger.debug(f"rejected: {rejected_count}")
     logger.info(f"{row_orig!s}\n  total: {total}")
     return total
 
@@ -856,6 +902,26 @@ def test_cache():
     # print(sub_rows.cache_info())
 
 
+def test_cache_glue_1():
+    line = ".??????? 2,1"
+    row = parse(line, unfold=False)
+    result = r_solve(row)
+    logger.warning(f"result: {result}")
+
+    print(r_solve.cache_info())
+    print(sub_rows.cache_info())
+    
+
+def test_cache_glue_2():
+    line = "??????? 2,1"
+    row = parse(line, unfold=False)
+    result = r_solve(row, True)
+    logger.warning(f"result: {result}")
+
+    print(r_solve.cache_info())
+    print(sub_rows.cache_info())
+
+
 def test_solve_sub_1():
     line = "???.### 1,1,3"
     row = parse(line, unfold=False)
@@ -865,11 +931,20 @@ def test_solve_sub_1():
     assert result == 1
 
 
+def test_solve_sub_2():
+    line = ".??????? 2,1"
+    row = parse(line, unfold=False)
+    result = r_solve(row)
+    logger.warning(f"result: {result}")
+    logger.warning("----- VV")
+    assert result == 10
+
+
 def test_parse1():
     line = ".??..??...?##. 1,1,3"
     row = parse(line)
     assert str(row) == (
-        ".??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??.?##. "
+        ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. "
         "1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
     )
 
@@ -886,7 +961,7 @@ def test_resolve1():
     row.resolve()
 
     expected = (
-        ".??.??.###.?.??.??.###.?.??.??.###.?.??.??.###.?.??.??.###. "
+        ".??..??...###.?.??..??...###.?.??..??...###.?.??..??...###.?.??..??...###. "
         "1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
     )
     assert str(row) == expected
@@ -988,7 +1063,7 @@ def test_sub_problem5():
     rows = sub_rows(row)
 
     assert len(rows) == 1
-    assert str(rows[0]) == ".##.#. 2,1"
+    assert str(rows[0]) == ".##.#... 2,1"
 
 
 def test_unit():
@@ -999,11 +1074,12 @@ def test_unit():
     assert result == 1
 
 
-def test_glue1():
-    line = ".??.???...?.??.???...?.??.???...?.??.???...?.??.???... 2,2,2,2,2,2,2,2,2,2"
+def test_hash():
+    line = "...??..?...#.###. 2,1,1,3"
+    row1 = parse(line, unfold=False)
 
-    # parse runs glue
-    row = parse(line, unfold=False)
+    line = "??.?.#.### 2,1,1,3"
+    row2 = parse(line, unfold=False)
 
-    expected = ".??.???.?.??.???.?.??.???.?.??.???.?.??.???. 2,2,2,2,2,2,2,2,2,2"
-    assert str(row) == expected
+    assert hash(row1) == hash(row2)
+
