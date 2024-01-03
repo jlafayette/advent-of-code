@@ -1,4 +1,5 @@
 import collections
+import functools
 import logging
 import typing
 import queue
@@ -7,7 +8,7 @@ from typing import Literal, Optional
 from pathlib import Path
 
 
-logging.basicConfig(level=logging.INFO, format="{message}", style='{')
+logging.basicConfig(level=logging.WARNING, format="{message}", style='{')
 logger = logging.getLogger()
 
 
@@ -93,6 +94,8 @@ class Row:
                         for _ in range(acc_n):
                             new.append((1, acc_ch))
                     else:
+                        if acc_ch == OP:
+                            acc_n = 1
                         new.append((acc_n, acc_ch))
                     acc_n = n
                 else:
@@ -105,7 +108,20 @@ class Row:
                 for _ in range(acc_n):
                     new.append((1, acc_ch))
             else:
+                if acc_ch == OP:
+                    acc_n = 1
                 new.append((acc_n, acc_ch))
+        # if len(new) >= 2:
+        #     start_index = 0
+        #     (n, ch) = new[0]
+        #     if ch == OP:
+        #         start_index = 1
+        #     end_index = len(new)
+        #     (n, ch) = new[-1]
+        #     if ch == OP:
+        #         end_index = -1
+        #     new = new[start_index:end_index]
+
         return new
 
     def max_br(self) -> int:
@@ -479,135 +495,152 @@ class Row:
 
         self.items = self.glue(self.items)
 
-    def sub_rows(self) -> list["Row"]:
-        if not self.grps:
-            return [self]
-        grp_counter = Counter(self.grps)
 
-        size_options = self.grp_size_options_1()
-        size_options = self.grp_size_options_1_narrowed(size_options)
 
-        # if each group only has 1 option, then we can resolve all others to '.'
-        only_one_option = True
-        for size, options in size_options.items():
-            if len(options) != grp_counter[size]:
-                only_one_option = False
-                break
-        if only_one_option:
-            br_indexes = set()
-            for size, options in size_options.items():
-                for (st_i, end_i) in options:
-                    # must be BR
-                    for i in range(st_i, end_i):
-                        (n, ch) = self.items[i]
-                        self.items[i] = (n, BR)
-                        br_indexes.add(i)
-            for i, (n, ch) in enumerate(self.items):
-                if ch == UN and i not in br_indexes:
-                    self.items[i] = (n, OP)
-            self.items = self.glue(self.items)
-            return [self]
-
-        sections: list[tuple[list[Item], list[int]]] = []
-
-        for size, options in size_options.items():
-            if len(options) != grp_counter[size]:
-                continue
-
-            grp_i = self.grps.index(size)+1
-            grp_acc = self.grps[:grp_i]
-            item_i = 0
-
-            for enumerate_i, (st_i, end_i) in enumerate(options):
-                last_iter = enumerate_i == len(options)-1
-
-                for i in range(st_i, end_i):
-                    (n, ch) = self.items[i]
-                    self.items[i] = (n, BR)
-                # Item before and after BR segment must be OP
-                for index in [st_i-1, end_i]:
-                    try:
-                        (n, ch) = self.items[index]
-                    except IndexError:
-                        pass
-                    else:
-                        if ch == UN:
-                            assert n == 1
-                            self.items[index] = (n, OP)
-
-                # handle existing acc unless it's fully resolved
-                # if item_acc:
-                #     assert len(grp_acc) > 0
-                #     sections.append((item_acc, grp_acc))
-                item_acc = self.items[item_i:end_i]
-                item_i = end_i
-                if grp_acc:
-                    assert len(item_acc) > 0
-                    sections.append((item_acc, grp_acc))
-
-                # add to item and grp acc
-                try:
-                    new_grp_i = self.grps[grp_i:].index(size) + 1 + grp_i
-                except ValueError:
-                    grp_acc = self.grps[grp_i:]
-                else:
-                    grp_acc = self.grps[grp_i:new_grp_i]
-                    grp_i = new_grp_i
-
-                if last_iter:
-                    item_acc = self.items[item_i:]
-                    if item_acc:
-                        try:
-                            assert len(item_acc) > 0
-                        except AssertionError:
-                            breakpoint()
-                            raise
-                        if not grp_acc:
-                            fully_resolved = True
-                            for (n, ch) in item_acc:
-                                if ch == UN:
-                                    fully_resolved = False
-                            # no groups, but item acc is not fully resolved
-                            if not fully_resolved:
-                                return []
-                        sections.append((item_acc, grp_acc))
-                    else:
-                        if len(grp_acc) != 0:
-                            return []
-
-            # TODO: allow locking in multiple sizes, but only split into
-            #       sub problems on the largest size?
-            break
-
-        # merge sections that are fully resolved into the next one
-        final_sections = []
-        item_acc = []
-        grp_acc = []
-        for section1 in sections:
-            items, grps = section1
-            item_acc.extend(items)
-            grp_acc.extend(grps)
-            fully_resolved = True
-            for (n, ch) in items:
-                if ch == UN:
-                    fully_resolved = False
-                    break
-            if not fully_resolved:
-                final_sections.append((item_acc, grp_acc))
-                item_acc = []
-                grp_acc = []
-        if item_acc or grp_acc:
-            final_sections.append((item_acc, grp_acc))
-
-        if final_sections:
-            return [Row(items, grps) for items, grps, in final_sections]
-        else:
-            return [self]
 
     def __str__(self):
         items = "".join([ch*n for (n, ch) in self.items])
         grps = ",".join([str(x) for x in self.grps])
         return " ".join([items, grps])
+
+    def __hash__(self):
+        # h = 0
+        # for i, (n, ch) in enumerate(self.items):
+        #     h += ord(ch) * n * i
+        # for i, grp in enumerate(self.grps):
+        #     h += i * grp
+        h = hash(str(self))
+        return h
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+
+@functools.lru_cache(maxsize=1000)
+def sub_rows(self: Row) -> list[Row]:
+    if not self.grps:
+        return [self]
+    grp_counter = Counter(self.grps)
+
+    size_options = self.grp_size_options_1()
+    size_options = self.grp_size_options_1_narrowed(size_options)
+
+    # if each group only has 1 option, then we can resolve all others to '.'
+    only_one_option = True
+    for size, options in size_options.items():
+        if len(options) != grp_counter[size]:
+            only_one_option = False
+            break
+    if only_one_option:
+        br_indexes = set()
+        for size, options in size_options.items():
+            for (st_i, end_i) in options:
+                # must be BR
+                for i in range(st_i, end_i):
+                    (n, ch) = self.items[i]
+                    self.items[i] = (n, BR)
+                    br_indexes.add(i)
+        for i, (n, ch) in enumerate(self.items):
+            if ch == UN and i not in br_indexes:
+                self.items[i] = (n, OP)
+        self.items = self.glue(self.items)
+        return [self]
+
+    sections: list[tuple[list[Item], list[int]]] = []
+
+    for size, options in size_options.items():
+        if len(options) != grp_counter[size]:
+            continue
+
+        grp_i = self.grps.index(size)+1
+        grp_acc = self.grps[:grp_i]
+        item_i = 0
+
+        for enumerate_i, (st_i, end_i) in enumerate(options):
+            last_iter = enumerate_i == len(options)-1
+
+            for i in range(st_i, end_i):
+                (n, ch) = self.items[i]
+                self.items[i] = (n, BR)
+            # Item before and after BR segment must be OP
+            for index in [st_i-1, end_i]:
+                try:
+                    (n, ch) = self.items[index]
+                except IndexError:
+                    pass
+                else:
+                    if ch == UN:
+                        assert n == 1
+                        self.items[index] = (n, OP)
+
+            # handle existing acc unless it's fully resolved
+            # if item_acc:
+            #     assert len(grp_acc) > 0
+            #     sections.append((item_acc, grp_acc))
+            item_acc = self.items[item_i:end_i]
+            item_i = end_i
+            if grp_acc:
+                assert len(item_acc) > 0
+                sections.append((item_acc, grp_acc))
+
+            # add to item and grp acc
+            try:
+                new_grp_i = self.grps[grp_i:].index(size) + 1 + grp_i
+            except ValueError:
+                grp_acc = self.grps[grp_i:]
+            else:
+                grp_acc = self.grps[grp_i:new_grp_i]
+                grp_i = new_grp_i
+
+            if last_iter:
+                item_acc = self.items[item_i:]
+                if item_acc:
+                    try:
+                        assert len(item_acc) > 0
+                    except AssertionError:
+                        breakpoint()
+                        raise
+                    if not grp_acc:
+                        fully_resolved = True
+                        for (n, ch) in item_acc:
+                            if ch == UN:
+                                fully_resolved = False
+                        # no groups, but item acc is not fully resolved
+                        if not fully_resolved:
+                            return []
+                    sections.append((item_acc, grp_acc))
+                else:
+                    if len(grp_acc) != 0:
+                        return []
+
+        # TODO: allow locking in multiple sizes, but only split into
+        #       sub problems on the largest size?
+        break
+
+    # merge sections that are fully resolved into the next one
+    final_sections = []
+    item_acc = []
+    grp_acc = []
+    for section1 in sections:
+        items, grps = section1
+        item_acc.extend(items)
+        grp_acc.extend(grps)
+        fully_resolved = True
+        for (n, ch) in items:
+            if ch == UN:
+                fully_resolved = False
+                break
+        if not fully_resolved:
+            final_sections.append((item_acc, grp_acc))
+            item_acc = []
+            grp_acc = []
+    if item_acc or grp_acc:
+        final_sections.append((item_acc, grp_acc))
+
+    if final_sections:
+        return [Row(items, grps) for items, grps, in final_sections]
+    else:
+        return [self]
 
 
 def mutate(row: Row) -> list[Row]:
@@ -634,7 +667,7 @@ def mutate(row: Row) -> list[Row]:
             b_items.extend(row.items[i + 1:])
 
             if i > Row.debug_place:
-                print(str(row))
+                logger.debug(str(row))
                 Row.debug_place = i
             break
     return [Row(a_items, row.grps), Row(b_items, row.grps)]
@@ -683,15 +716,15 @@ def parse(line, unfold=True) -> Row:
 def solve(line: str):
     row_orig = parse(line)
     result = r_solve(row_orig)
-    print(str(row_orig))
-    print("  ", result)
+    logger.warning(f"line: {row_orig!s}\n\ttotal: {result}")
     return result
 
 
+@functools.lru_cache(maxsize=1000)
 def r_solve(row_orig: Row) -> int:
-    rows = row_orig.sub_rows()
+    rows = sub_rows(row_orig)
     if len(rows) == 0:
-        print(f"{row_orig!s}\n  total: {0}")
+        logger.warning(f"sub: {row_orig!s}\n\ttotal: {0}")
         return 0
     if len(rows) == 1:
         row_orig = rows[0]
@@ -699,7 +732,7 @@ def r_solve(row_orig: Row) -> int:
         total = 1
         for row in rows:
             total *= r_solve(row)
-        print(f"{row_orig!s}\n  total: {total}")
+        logger.warning(f"sub: {row_orig!s}\n\ttotal: {total}")
         return total
 
     q = Q()
@@ -715,10 +748,9 @@ def r_solve(row_orig: Row) -> int:
     while True:
         loops += 1
         if loops > 999:
-            print("ERROR: too many loops")
-            break
+            raise RuntimeError(f"too many loops ({loops}) qsize={q.q.qsize()+swap_q.q.qsize()}")
         if loops % 100 == 0:
-            print(f"loop {loops}")
+            logger.info(f"loop {loops}")
         q_result, ok = q.get()
         if not ok:
             q_index += 1
@@ -746,7 +778,7 @@ def r_solve(row_orig: Row) -> int:
             # print(f"child: {str(child)}")
             if child.might_work():
 
-                rows = child.sub_rows()
+                rows = sub_rows(child)
                 if len(rows) == 0:
                     # print("rejected (sub_rows())")
                     # print("  ", str(child))
@@ -767,73 +799,27 @@ def r_solve(row_orig: Row) -> int:
 
     # print(f"maybe valid: {maybe_valid_count}")
     # print(f"rejected: {rejected_count}")
-    print(f"{row_orig!s}\n  total: {total}")
+    logger.info(f"{row_orig!s}\n  total: {total}")
     return total
 
 
 def part2(data):
-    #     data = """\
-    # ???.### 1,1,3
-    # .??..??...?##. 1,1,3\
-    # """
-    # .??..??...?##. 1,1,3
-    # ?#?#?#?#?#?#?#? 1,3,1,6
-    # ????.#...#... 4,1,1
-    # ????.######..#####. 1,6,5
-    # ?###???????? 3,2,1
-
-    # print("\n--- might work ---")
-
-    def t(line, expected):
-        row = parse(line)
-        r = row.might_work()
-        if r == expected:
-            print("P", r)
-        else:
-            print(f"ERROR: got {r}, expected {expected}")
-            print(str(row))
-            print(" ", r)
-
-    # t(".#.# 1", False)
-    # t(".#. 1", True)
-    # t(".##. 1", False)
-    # t(".##?. 3", True)
-    # t(".#?. 3", False)
-    # t(".## 3", False)
-    #
-    # # the all ok (examples)
-    # t("???.### 1,1,3", True)
-    # t(".??..??...?##. 1,1,3", True)
-    # t("?#?#?#?#?#?#?#? 1,3,1,6", True)  # needs work
-    # t("????.#...#... 4,1,1", True)
-    # t("????.######..#####. 1,6,5", True)
-    # t("?###???????? 3,2,1", True)
-
-    # is_valid
-    # line = "##..#####...####.#..####.#..#####...### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
-    # line = "..#...#...###.#..#...#...###.#..#...#...###.#..#...#...###.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
-    # line = "#???.#...#...?????.#...#...?????.#...#...?????.#...#...?????.#...#... 4,1,1,4,1,1,4,1,1,4,1,1,4,1,1"
-    # row = parse(line, unfold=False)
-    # print(row.might_work())
-    #     line = """\
-    # .#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#? \
-    # 1,3,1,6,1,3,1,6,1,3,1,6,1,3,1,6,1,3,1,6"""
-    # line = ".#.###.#.######.?#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#???#?#?#?#?#?#?#? 1,3,1,6,1,3,1,6,1,3,1,6,1,3,1,6,1,3,1,6"
-    # row = parse(line, unfold=False)
-    # print(row._slot_check())
-
-    # the all ok (examples)
-    # assert 1 == solve("???.### 1,1,3")
-    # assert 16384 == solve(".??..??...?##. 1,1,3")
-    # assert 1 == solve("?#?#?#?#?#?#?#? 1,3,1,6")
-    # assert 16 == solve("????.#...#... 4,1,1")
-    # assert 2500 == solve("????.######..#####. 1,6,5")
-    _ = solve("?###???????? 3,2,1")  # 506250
+    total = 0
+    errors = []
+    for line in split_and_strip(data, "\n"):
+        try:
+            total += solve(line)
+        except RuntimeError as err:
+            print(f"ERROR: {err}")
+            errors.append((line, err))
+    for (line, err) in errors:
+        print(f"ERROR: {err} for line: {line}")
+    print("Total:", total)
 
 
 if __name__ == "__main__":
-    part2(DATA)
-    # part2(INPUT)
+    # part2(DATA)
+    part2(INPUT)
 
 
 def test_solve_example1():
@@ -860,6 +846,16 @@ def test_solve_example6():
     assert 506250 == solve("?###???????? 3,2,1")
 
 
+def test_cache():
+    solve("?###???????? 3,2,1")
+    solve("?###???????? 3,2,1")
+    solve(".??..??...?##. 1,1,3")
+
+    # print(r_solve.cache_info())
+    #
+    # print(sub_rows.cache_info())
+
+
 def test_solve_sub_1():
     line = "???.### 1,1,3"
     row = parse(line, unfold=False)
@@ -873,7 +869,7 @@ def test_parse1():
     line = ".??..??...?##. 1,1,3"
     row = parse(line)
     assert str(row) == (
-        ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. "
+        ".??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??.?##. "
         "1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
     )
 
@@ -890,7 +886,7 @@ def test_resolve1():
     row.resolve()
 
     expected = (
-        ".??..??...###.?.??..??...###.?.??..??...###.?.??..??...###.?.??..??...###. "
+        ".??.??.###.?.??.??.###.?.??.??.###.?.??.??.###.?.??.??.###. "
         "1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
     )
     assert str(row) == expected
@@ -922,16 +918,16 @@ def test_sub_problem():
     )
     assert str(row) == expected
 
-    sub_rows = row.sub_rows()
-    assert len(sub_rows) == 5
-    assert str(sub_rows[0]) == ".###.????????.### 3,2,1,3"
-    assert str(sub_rows[1]) == ".????????.### 2,1,3"
-    assert str(sub_rows[2]) == ".????????.### 2,1,3"
-    assert str(sub_rows[3]) == ".????????.### 2,1,3"
-    assert str(sub_rows[4]) == ".??????? 2,1"
+    results = sub_rows(row)
+    assert len(results) == 5
+    assert str(results[0]) == ".###.????????.### 3,2,1,3"
+    assert str(results[1]) == ".????????.### 2,1,3"
+    assert str(results[2]) == ".????????.### 2,1,3"
+    assert str(results[3]) == ".????????.### 2,1,3"
+    assert str(results[4]) == ".??????? 2,1"
 
     # total = 0
-    # for row in sub_rows:
+    # for row in results:
     #     x = r_solve(row)
     #     total = total * x
     # assert total == 506250
@@ -948,9 +944,9 @@ def test_sub_problem2():
     )
     assert str(row) == expected
 
-    sub_rows = row.sub_rows()
-    assert len(sub_rows) == 1
-    assert str(sub_rows[0]) == expected
+    results = sub_rows(row)
+    assert len(results) == 1
+    assert str(results[0]) == expected
 
 
 def test_sub_problem3():
@@ -963,14 +959,14 @@ def test_sub_problem3():
     )
     assert str(row) == expected
 
-    sub_rows = row.sub_rows()
-    assert len(sub_rows) == 5
-    assert len(sub_rows) == 5
-    assert str(sub_rows[0]) == "???.### 1,1,3"
-    assert str(sub_rows[1]) == ".???.### 1,1,3"
-    assert str(sub_rows[1]) == ".???.### 1,1,3"
-    assert str(sub_rows[1]) == ".???.### 1,1,3"
-    assert str(sub_rows[1]) == ".???.### 1,1,3"
+    results = sub_rows(row)
+    assert len(results) == 5
+    assert len(results) == 5
+    assert str(results[0]) == "???.### 1,1,3"
+    assert str(results[1]) == ".???.### 1,1,3"
+    assert str(results[1]) == ".???.### 1,1,3"
+    assert str(results[1]) == ".???.### 1,1,3"
+    assert str(results[1]) == ".???.### 1,1,3"
 
 
 def test_sub_problem4():
@@ -978,7 +974,7 @@ def test_sub_problem4():
     row = parse(line, unfold=False)
     assert str(row) == line
 
-    rows = row.sub_rows()
+    rows = sub_rows(row)
 
     assert len(rows) == 1
     assert str(rows[0]) == line
@@ -989,10 +985,10 @@ def test_sub_problem5():
     row = parse(line, unfold=False)
     assert str(row) == line
 
-    rows = row.sub_rows()
+    rows = sub_rows(row)
 
     assert len(rows) == 1
-    assert str(rows[0]) == ".##.#... 2,1"
+    assert str(rows[0]) == ".##.#. 2,1"
 
 
 def test_unit():
@@ -1001,3 +997,13 @@ def test_unit():
     result = r_solve(row)
 
     assert result == 1
+
+
+def test_glue1():
+    line = ".??.???...?.??.???...?.??.???...?.??.???...?.??.???... 2,2,2,2,2,2,2,2,2,2"
+
+    # parse runs glue
+    row = parse(line, unfold=False)
+
+    expected = ".??.???.?.??.???.?.??.???.?.??.???.?.??.???. 2,2,2,2,2,2,2,2,2,2"
+    assert str(row) == expected
