@@ -8,7 +8,7 @@ from typing import Literal, Optional
 from pathlib import Path
 
 
-logging.basicConfig(level=logging.INFO, format="{message}", style='{')
+logging.basicConfig(level=logging.WARNING, format="{message}", style='{')
 logger = logging.getLogger()
 
 
@@ -75,23 +75,16 @@ SizePossibilities = dict[int, list[tuple[int, int]]]
 class Row:
     debug_place = -1
 
-    def __init__(self, items: list[Item], grps: list[int], use_new_glue=False):
+    def __init__(self, items: list[Item], grps: list[int]):
         self.grps = grps
         if grps:
             self.max_grp = max(grps)
         else:
             self.max_grp = 0
-        if use_new_glue:
-            self.items = self._glue2(items)
-        else:
-            self.items = self.glue(items)
+        self.items = self._glue1(items)
 
     def glue(self, items: list[Item]):
-        new1 = self._glue1(items)
-        # new2 = self._glue2(items)
-        # if new1 != new2:
-        #     breakpoint()
-        return new1
+        return self._glue1(items)
     
     @staticmethod
     def _glue1(items: list[Item]):
@@ -104,8 +97,6 @@ class Row:
                         for _ in range(acc_n):
                             new.append((1, acc_ch))
                     else:
-                        # if acc_ch == OP:
-                        #     acc_n = 1
                         new.append((acc_n, acc_ch))
                     acc_n = n
                 else:
@@ -118,22 +109,8 @@ class Row:
                 for _ in range(acc_n):
                     new.append((1, acc_ch))
             else:
-                # if acc_ch == OP:
-                #     acc_n = 1
                 new.append((acc_n, acc_ch))
-        # if len(new) >= 2:
-        #     start_index = 0
-        #     (n, ch) = new[0]
-        #     if ch == OP:
-        #         start_index = 1
-        #     end_index = len(new)
-        #     (n, ch) = new[-1]
-        #     if ch == OP:
-        #         end_index = -1
-        #     new = new[start_index:end_index]
-
         return new
-
 
     @staticmethod
     def _glue2(items: list[Item]):
@@ -173,7 +150,6 @@ class Row:
             if ch == OP:
                 end_index = -1
             new = new[start_index:end_index]
-
         return new
 
     def max_br(self) -> int:
@@ -226,154 +202,6 @@ class Row:
                 current_run = 0
         return largest
 
-    def _slot_check(self):
-        # '.#? 3' will not work (not enough 3 slots)
-        # '.##?.##?.##?.##?.## 3,3,3,3,3'
-        ...
-        # lower index (groups that must have been slotted)
-        lo_i = 0
-        # upper index (groups that could be slotted so far)
-        hi_i = 0
-        ok = True
-        combinables: list[Item] = []
-        for (prev_n, prev_ch), (n, ch), (next_n, next_ch) in self.enumerate():
-            combinable = ch == BR or ch == UN
-            if combinable:
-                combinables.append((n, ch))
-            next_combinable = next_ch == BR or next_ch == UN
-            if not next_combinable and combinables:
-                # deal with combinables
-                # '##?'
-                # go through tokens, moving lo and hi indexes
-                lo_i, hi_i = self._stuff(lo_i, hi_i, combinables)
-                combinables = []
-        if hi_i < len(self.grps):
-            logger.debug("failed slot check")
-            logger.debug("  hi_i < len(self.grps)")
-            logger.debug(f"  {hi_i} < {len(self.grps)}")
-            ok = False
-        # can we say anything about lo_i? larger than grps?
-        if lo_i > len(self.grps):
-            logger.debug("failed slot check")
-            logger.debug("  lo_i > len(self.grps)")
-            logger.debug(f"  {lo_i} > {len(self.grps)}")
-            ok = False
-        return ok
-
-    def _check_lo_hi(self, i, acc, t="hi"):
-        inc = False
-        try:
-            if self.grps[i] == acc:
-                i += 1
-                acc = 0
-                inc = True
-                logger.debug(f"  {t} {i-1}({self.grps[i-1]})->{i}({self.grps[i]})")
-        except IndexError:
-            pass
-
-        return i, acc, inc
-
-    @staticmethod
-    def _next_br_chunk_of_size(size: int, combinables: list[Item]) -> Optional[int]:
-        for (n, ch) in combinables:
-            if ch == BR and n == size:
-                return n
-        return None
-
-    @staticmethod
-    def _next_br_chunk(combinables: list[Item]) -> Optional[int]:
-        for (n, ch) in combinables:
-            if ch == BR:
-                return n
-        return None
-
-    def get_grp(self, i: int) -> Optional[int]:
-        try:
-            return self.grps[i]
-        except IndexError:
-            return None
-
-    def _stuff(self, lo_i: int, hi_i: int, combinables: list[Item]) -> tuple[int, int]:
-        logger.debug(f"_stuff {lo_i}, {hi_i}, {combinables}")
-        # '##?'
-        # go through tokens, moving lo and hi indexes
-        lo_acc = 0
-        hi_acc = 0
-
-        lo_pass = False
-        hi_pass = False  # hi needs to take a break and insert '.'
-        for combinables_i, (n, ch) in enumerate(combinables):
-            remaining_combinables = combinables[combinables_i+1:]
-            logger.debug(str((n, ch)))
-            if ch == BR:
-                lo_acc += n
-                # print(f"  BR {lo_i}({self.get_grp(lo_i)}) {lo_acc}")
-                lo_i, lo_acc, inc = self._check_lo_hi(lo_i, lo_acc, t="lo")
-                if inc:
-                    lo_pass = True
-                else:
-                    ...
-                    # lo must combine with next ? to make it work
-
-                # if hi_pass:
-                #     print("not working right... oh well", (n, ch), combinables)
-                hi_acc += n
-                hi_i, hi_acc, inc = self._check_lo_hi(hi_i, hi_acc, t="hi")
-                if inc:
-                    hi_pass = True
-                else:
-                    # ok to go back to lo_i, try each one until one fits, then call that good
-                    end = hi_i
-                    hi_i = lo_i
-                    hi_acc = lo_acc
-                    for i in range(lo_i, end):
-                        logger.debug(f"    t {i}({self.get_grp(i)})")
-                        hi_i, hi_acc, inc = self._check_lo_hi(i, hi_acc, t="hi")
-                        if inc:
-                            hi_pass = True
-                            break
-            elif ch == UN:
-                next_br_hi_chunk_n = self._next_br_chunk_of_size(self.get_grp(hi_i), remaining_combinables)
-                next_br_chunk_n = self._next_br_chunk(remaining_combinables)
-                # print("  nxt_br_chunk_n:", next_br_chunk_n, "lo_acc:", lo_acc)
-
-                for i in range(n):
-                    last_iter = i == n-1
-                    # handle lo acc if it won't fit
-                    if last_iter:
-                        if lo_pass:
-                            lo_pass = False
-                        elif next_br_chunk_n == lo_acc + 1:
-                            lo_acc += 1
-                            lo_i, lo_acc, inc = self._check_lo_hi(lo_i, lo_acc, t="lo")
-                            if inc:
-                                lo_pass = True
-                    elif next_br_chunk_n != self.get_grp(lo_i):
-                        logger.debug(f" next br chunk ({next_br_chunk_n}) != current low grp ({self.get_grp(lo_i)})")
-                        if lo_pass:
-                            lo_pass = False
-                        else:
-                            lo_acc += 1
-                            lo_i, lo_acc, inc = self._check_lo_hi(lo_i, lo_acc, t="lo")
-                            if inc:
-                                lo_pass = True
-
-                    # hande hi acc one by one, slotting them in
-                    if hi_pass:
-                        hi_pass = False
-                    else:
-                        if last_iter and next_br_hi_chunk_n:
-                            ...
-                        else:
-                            hi_acc += 1
-                            hi_i, hi_acc, inc = self._check_lo_hi(hi_i, hi_acc, t="hi")
-                            if inc:
-                                hi_pass = True
-                    # logger.debug(f"  | -({i}) lo: {lo_i},{lo_acc},{lo_pass}  hi: {hi_i},{hi_acc},{hi_pass}")
-            # logger.debug(f"  L lo: {lo_i},{lo_acc},{lo_pass}  hi: {hi_i},{hi_acc},{hi_pass}")
-
-        return lo_i, hi_i
-
     def _locked_in_check(self) -> bool:
         group_stack = Stack(reversed(self.grps))
         for (_, (n, ch), (next_n, next_ch)) in self.enumerate():
@@ -416,16 +244,6 @@ class Row:
             logger.debug("failed lock-in check")
             logger.debug("  %s" % str(self))
             return False
-
-        # '.#? 3' will not work (not enough 3 slots)
-        # '.##?.##?.##?.##?.## 3,3,3,3,3'
-        # logger.debug("doing slot check for")
-        # logger.debug(str(self))
-        # ok = self._slot_check()
-        # if not ok:
-        #     logger.debug("failed slot check")
-        #     logger.debug("  %s" % str(self))
-        #     return False
 
         return True
 
@@ -563,7 +381,7 @@ class Row:
 
 
 @functools.lru_cache(maxsize=1000)
-def sub_rows(self: Row, use_new_glue=False) -> list[Row]:
+def sub_rows(self: Row) -> list[Row]:
     if not self.grps:
         return [self]
     grp_counter = Counter(self.grps)
@@ -684,12 +502,12 @@ def sub_rows(self: Row, use_new_glue=False) -> list[Row]:
         final_sections.append((item_acc, grp_acc))
 
     if final_sections:
-        return [Row(items, grps, use_new_glue=use_new_glue) for items, grps, in final_sections]
+        return [Row(items, grps) for items, grps, in final_sections]
     else:
         return [self]
 
 
-def mutate(row: Row, use_new_glue=False) -> list[Row]:
+def mutate(row: Row) -> list[Row]:
     a_items: list[Item] = []
     b_items: list[Item] = []
 
@@ -716,10 +534,10 @@ def mutate(row: Row, use_new_glue=False) -> list[Row]:
                 logger.debug(str(row))
                 Row.debug_place = i
             break
-    return [Row(a_items, row.grps, use_new_glue=use_new_glue), Row(b_items, row.grps, use_new_glue=use_new_glue)]
+    return [Row(a_items, row.grps), Row(b_items, row.grps)]
 
 
-def parse(line, unfold=True, use_new_glue=False) -> Row:
+def parse(line, unfold=True) -> Row:
     logger.debug(f"parsing line: {line}")
     a, b = line.split(" ", 1)
     if unfold:
@@ -756,19 +574,19 @@ def parse(line, unfold=True, use_new_glue=False) -> Row:
         else:
             result.append((acc, last_ch))
 
-    return Row(result, groups, use_new_glue=use_new_glue)
+    return Row(result, groups)
 
 
-def solve(line: str, use_new_glue=False):
-    row_orig = parse(line, use_new_glue=use_new_glue)
-    result = r_solve(row_orig, use_new_glue=use_new_glue)
+def solve(line: str):
+    row_orig = parse(line)
+    result = r_solve(row_orig)
     logger.warning(f"line: {row_orig!s}\n\ttotal: {result}")
     return result
 
 
 @functools.lru_cache(maxsize=1000)
-def r_solve(row_orig: Row, use_new_glue=False) -> int:
-    rows = sub_rows(row_orig, use_new_glue=False)
+def r_solve(row_orig: Row) -> int:
+    rows = sub_rows(row_orig)
     if len(rows) == 0:
         logger.warning(f"sub: {row_orig!s}\n\ttotal: {0}")
         return 0
@@ -820,11 +638,11 @@ def r_solve(row_orig: Row, use_new_glue=False) -> int:
 
         # solve rest with both '.' and '#'
         logger.debug(f"-- before mutate of row {str(row)}")
-        for child in mutate(row, use_new_glue=use_new_glue):
+        for child in mutate(row):
             logger.debug(f"  child: {str(child)}")
             if child.might_work():
 
-                rows = sub_rows(child, use_new_glue=use_new_glue)
+                rows = sub_rows(child)
                 if len(rows) == 0:
                     logger.debug("    rejected (sub_rows())")
                     logger.debug(f"    {child!s}")
@@ -897,25 +715,14 @@ def test_cache():
     solve("?###???????? 3,2,1")
     solve(".??..??...?##. 1,1,3")
 
-    # print(r_solve.cache_info())
-    #
-    # print(sub_rows.cache_info())
+    print(r_solve.cache_info())
+    print(sub_rows.cache_info())
 
 
 def test_cache_glue_1():
     line = ".??????? 2,1"
     row = parse(line, unfold=False)
     result = r_solve(row)
-    logger.warning(f"result: {result}")
-
-    print(r_solve.cache_info())
-    print(sub_rows.cache_info())
-    
-
-def test_cache_glue_2():
-    line = "??????? 2,1"
-    row = parse(line, unfold=False)
-    result = r_solve(row, True)
     logger.warning(f"result: {result}")
 
     print(r_solve.cache_info())
