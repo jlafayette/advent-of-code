@@ -8,6 +8,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Executables
+*.exe
+# Debug files
+*.pdb
+
 # Environments
 venv/
 
