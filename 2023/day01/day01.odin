@@ -3,7 +3,9 @@ package day01
 import "core:fmt"
 import "core:mem"
 import "core:os"
+import "core:runtime"
 import "core:strconv"
+import "core:strings"
 
 main :: proc() {
 	// freeing memory is not really needed for a program like this, but
@@ -24,6 +26,7 @@ main :: proc() {
 				fmt.eprintf("=== %v incorrect frees: ===\n", len(track.bad_free_array))
 				for entry in track.bad_free_array {
 					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
+
 				}
 			}
 		}
@@ -70,19 +73,65 @@ part1 :: proc(input: string) -> int {
 	return sum
 }
 
+to_digit_u8 :: proc(char: u8) -> (v: int, ok: bool) {
+	switch char {
+	case '0' ..= '9':
+		{
+			v = int(char) - '0'
+			ok = true
+		}
+	}
+	return
+}
+to_digit_u8_yolo :: proc(char: u8) -> int {
+	return int(char) - '0'
+}
+
+part1_2 :: proc(input: ^string) -> int {
+	sum := 0
+	for line in strings.split_lines_iterator(input) {
+		first := strings.index_any(line, "0123456789")
+		last := strings.last_index_any(line, "0123456789")
+		if first != -1 {
+			sum += to_digit_u8_yolo(line[first]) * 10
+		}
+		if last != -1 {
+			sum += to_digit_u8_yolo(line[last])
+		}
+	}
+	return sum
+}
+
 TEST_INPUT :: `1abc2
 pqr3stu8vwx
 a1b2c3d4e5f
-treb7uchet`
+treb7uchet
+no`
 
 
 _main :: proc() {
-	r := part1(TEST_INPUT)
-	fmt.println(r)
-	input, ok := os.read_entire_file_from_filename("input")
-	defer delete(input)
-	assert(ok)
-	// input is byte[]
-	r = part1(string(input))
-	fmt.println(r)
+	{
+		r := part1(TEST_INPUT)
+		fmt.println(r)
+	}
+	{
+		str := string(TEST_INPUT)
+		r := part1_2(&str)
+		fmt.println(r)
+	}
+	{
+		input, ok := os.read_entire_file_from_filename("input")
+		defer delete(input)
+		assert(ok)
+
+		{
+			r := part1(string(input))
+			fmt.println(r)
+		}
+		{
+			str := string(input)
+			r := part1_2(&str)
+			fmt.println(r)
+		}
+	}
 }
