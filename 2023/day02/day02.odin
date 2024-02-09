@@ -3,7 +3,6 @@ package day01
 import "core:fmt"
 import "core:mem"
 import "core:os"
-import "core:runtime"
 import "core:strconv"
 import "core:strings"
 
@@ -44,33 +43,6 @@ Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red
 Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green
 `
 
-Color :: enum {
-	Red,
-	Blue,
-	Green,
-}
-ColDraw :: struct {
-	count: int,
-	color: Color,
-}
-Draw :: [3]ColDraw
-Game :: struct {
-	id:    int,
-	draws: [dynamic]Draw,
-}
-game_make :: proc(id: int) -> Game {
-	return Game{id = id, draws = make([dynamic]Draw, 0, 10)}
-}
-game_destroy :: proc(g: ^Game) {
-	delete(g.draws)
-}
-
-
-parse_game :: proc(line: ^string) -> Game {
-	id := 0
-	return game_make(id)
-}
-
 part1 :: proc(input: ^string) -> int {
 	sum := 0
 	// 12 red cubes, 13 green cubes, and 14 blue cubes
@@ -81,14 +53,12 @@ part1 :: proc(input: ^string) -> int {
 		strs := strings.split_n(line, ": ", 2)
 		defer delete(strs)
 		if len(strs) != 2 {continue}
-		// fmt.println(strs)
 		id_parts := strings.split(strs[0], " ")
 		defer delete(id_parts)
 		assert(len(id_parts) == 2)
 		id_str := id_parts[1]
 		id, ok := strconv.parse_int(id_str)
 		assert(ok)
-		// fmt.println("id:", id)
 		possible := true
 		for draw_str in strings.split_iterator(&strs[1], "; ") {
 			part_strs := strings.split(draw_str, ", ")
@@ -97,7 +67,6 @@ part1 :: proc(input: ^string) -> int {
 				col_draw := strings.split(part_str, " ")
 				defer delete(col_draw)
 				assert(len(col_draw) == 2)
-				// fmt.println("  ", col_draw)
 				count, ok := strconv.parse_int(col_draw[0])
 				assert(ok)
 				max := 0
