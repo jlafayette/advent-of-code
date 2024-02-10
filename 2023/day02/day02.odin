@@ -92,8 +92,43 @@ part1 :: proc(input: ^string) -> int {
 	return sum
 }
 
+
 part2 :: proc(input: ^string) -> int {
 	sum := 0
+	for line in strings.split_lines_iterator(input) {
+		strs := strings.split_n(line, ": ", 2)
+		defer delete(strs)
+		if len(strs) != 2 {continue}
+		id_parts := strings.split(strs[0], " ")
+		defer delete(id_parts)
+		assert(len(id_parts) == 2)
+		id_str := id_parts[1]
+		id, ok := strconv.parse_int(id_str)
+		assert(ok)
+		min_red := 0
+		min_green := 0
+		min_blue := 0
+		for draw_str in strings.split_iterator(&strs[1], "; ") {
+			part_strs := strings.split(draw_str, ", ")
+			defer delete(part_strs)
+			for part_str in part_strs {
+				col_draw := strings.split(part_str, " ")
+				defer delete(col_draw)
+				assert(len(col_draw) == 2)
+				count, ok := strconv.parse_int(col_draw[0])
+				assert(ok)
+				switch col_draw[1] {
+				case "red":
+					{min_red = max(min_red, count)}
+				case "green":
+					{min_green = max(min_green, count)}
+				case "blue":
+					{min_blue = max(min_blue, count)}
+				}
+			}
+		}
+		sum += min_red * min_green * min_blue
+	}
 	return sum
 }
 
@@ -104,11 +139,12 @@ _main :: proc() {
 		fmt.println(r)
 		assert(r == 8)
 	}
-	// {
-	// 	str := string(TEST_INPUT)
-	// 	r := part2(&str)
-	// 	// fmt.println(r)
-	// }
+	{
+		str := string(TEST_INPUT)
+		r := part2(&str)
+		fmt.println(r)
+		assert(r == 2286)
+	}
 	{
 		input, ok := os.read_entire_file_from_filename("input")
 		defer delete(input)
@@ -120,10 +156,11 @@ _main :: proc() {
 			fmt.println(r)
 			assert(r == 2449)
 		}
-		// {
-		// 	str := string(input)
-		// 	r := part2(&str)
-		// 	// fmt.println(r)
-		// }
+		{
+			str := string(input)
+			r := part2(&str)
+			fmt.println(r)
+			assert(r == 63981)
+		}
 	}
 }
