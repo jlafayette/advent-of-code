@@ -187,13 +187,164 @@ part3 :: proc(input: ^string, alloc: mem.Allocator) -> (sum1: int, sum2: int) {
 	return sum1, sum2
 }
 
+// TEST_INPUT :: `
+// Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green
+// Game 2: 1 blue, 2 green; 3 green, 4 blue, 1 red; 1 green, 1 blue
+// Game 3: 8 green, 6 blue, 20 red; 5 blue, 4 red, 13 green; 5 green, 1 red
+// Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red
+// Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green
+// `
+Parser :: struct {
+	line: string,
+}
+chomp_n :: proc(p: ^Parser, n: int) {
+	p.line = p.line[n:]
+}
+chomp_number :: proc(p: ^Parser) -> int {
+	for r, i in p.line {
+		switch r {
+		case '0' ..= '9':
+		case:
+			{
+				n, ok := strconv.parse_int(p.line[:i])
+				if !ok {
+					fmt.println("  ERR parsing number from", p.line[:i])
+				}
+				assert(ok)
+				p.line = p.line[i:]
+				return n
+			}
+		}
+	}
+	assert(false)
+	return 0
+}
+Label :: enum {
+	R,
+	G,
+	B,
+	Err,
+}
+chomp_label :: proc(p: ^Parser) -> Label {
+	if strings.has_prefix(p.line, "red") {
+		p.line = p.line[3:]
+		return .R
+	}
+	if strings.has_prefix(p.line, "green") {
+		p.line = p.line[5:]
+		return .G
+	}
+	if strings.has_prefix(p.line, "blue") {
+		p.line = p.line[4:]
+		return .B
+	}
+	return .Err
+}
+Divider :: enum {
+	Comma,
+	SemiColon,
+	EOL,
+}
+chomp_divider :: proc(p: ^Parser) -> Divider {
+	if len(p.line) == 0 {
+		return .EOL
+	}
+	defer {
+		p.line = p.line[1:]
+	}
+	switch p.line[0] {
+	case ',':
+		return .Comma
+	case ';':
+		return .SemiColon
+	case:
+		return .EOL
+	}
+}
+
+part4 :: proc(input: ^string) -> (sum1: int, sum2: int) {
+	// 12 red cubes, 13 green cubes, and 14 blue cubes
+	red_max := 12
+	green_max := 13
+	blue_max := 14
+
+	for line in strings.split_lines_iterator(input) {
+		if len(line) == 0 {
+			continue
+		}
+		// fmt.println(line)
+		p := Parser {
+			line = line,
+		}
+		chomp_n(&p, 5)
+		id := chomp_number(&p)
+		// fmt.println("   id:", id)
+		chomp_n(&p, 2)
+
+		possible := true
+		min_red := 0
+		min_green := 0
+		min_blue := 0
+
+		done := false
+		for !done {
+			divider: Divider = .Comma
+			for divider == .Comma {
+				count := chomp_number(&p)
+				chomp_n(&p, 1)
+				col := chomp_label(&p)
+				divider = chomp_divider(&p)
+				// fmt.println("    ", count, col, divider)
+
+				max_count := 0
+				switch col {
+				case .R:
+					{
+						max_count = red_max
+						min_red = max(min_red, count)
+					}
+				case .G:
+					{
+						max_count = green_max
+						min_green = max(min_green, count)
+
+					}
+				case .B:
+					{
+						max_count = blue_max
+						min_blue = max(min_blue, count)
+					}
+				case .Err:
+					{
+						fmt.println("ERR")
+					}
+				}
+				if count > max_count {
+					possible = false
+				}
+
+				if divider == .EOL {
+					done = true
+					break
+				}
+				chomp_n(&p, 1)
+			}
+		}
+		if possible {
+			sum1 += id
+		}
+		sum2 += min_red * min_green * min_blue
+	}
+	return sum1, sum2
+}
+
 
 _main :: proc() {
 	start_tick := time.tick_now()
-	buf: [1024]byte
-	arena: mem.Arena
-	mem.arena_init(&arena, buf[:])
-	alloc := mem.arena_allocator(&arena)
+	// buf: [1024]byte
+	// arena: mem.Arena
+	// mem.arena_init(&arena, buf[:])
+	// alloc := mem.arena_allocator(&arena)
 	// {
 	// 	str := string(TEST_INPUT)
 	// 	r := part1(&str, alloc)
@@ -208,7 +359,7 @@ _main :: proc() {
 	// }
 	{
 		str := string(TEST_INPUT)
-		r1, r2 := part3(&str, alloc)
+		r1, r2 := part4(&str)
 		// fmt.println(r1, r2)
 		assert(r1 == 8)
 		assert(r2 == 2286)
@@ -231,7 +382,8 @@ _main :: proc() {
 		// }
 		{
 			str := string(input)
-			r1, r2 := part3(&str, alloc)
+			r1, r2 := part4(&str)
+			// fmt.println(r1, r2)
 			assert(r1 == 2449)
 			assert(r2 == 63981)
 		}
