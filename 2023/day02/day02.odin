@@ -128,39 +128,112 @@ part2 :: proc(input: ^string, alloc: mem.Allocator) -> int {
 	return sum
 }
 
+
+part3 :: proc(input: ^string, alloc: mem.Allocator) -> (sum1: int, sum2: int) {
+	// 12 red cubes, 13 green cubes, and 14 blue cubes
+	red_max := 12
+	green_max := 13
+	blue_max := 14
+
+	for line in strings.split_lines_iterator(input) {
+		defer free_all(alloc)
+		strs := strings.split_n(line, ": ", 2, alloc)
+		if len(strs) != 2 {continue}
+		id_parts := strings.split(strs[0], " ", alloc)
+		assert(len(id_parts) == 2)
+		id_str := id_parts[1]
+		id, ok := strconv.parse_int(id_str)
+		assert(ok)
+		possible := true
+		min_red := 0
+		min_green := 0
+		min_blue := 0
+		for draw_str in strings.split_iterator(&strs[1], "; ") {
+			part_strs := strings.split(draw_str, ", ", alloc)
+			for part_str in part_strs {
+				col_draw := strings.split(part_str, " ", alloc)
+				assert(len(col_draw) == 2)
+				count, ok := strconv.parse_int(col_draw[0])
+				assert(ok)
+				max_count := 0
+				switch col_draw[1] {
+				case "red":
+					{
+						max_count = red_max
+						min_red = max(min_red, count)
+					}
+				case "green":
+					{
+						max_count = green_max
+						min_green = max(min_green, count)
+					}
+				case "blue":
+					{
+						max_count = blue_max
+						min_blue = max(min_blue, count)
+					}
+				}
+				assert(max_count != 0)
+				if count > max_count {
+					possible = false
+				}
+			}
+		}
+		if possible {
+			sum1 += id
+		}
+		sum2 += min_red * min_green * min_blue
+	}
+	return sum1, sum2
+}
+
+
 _main :: proc() {
 	start_tick := time.tick_now()
 	buf: [1024]byte
 	arena: mem.Arena
 	mem.arena_init(&arena, buf[:])
 	alloc := mem.arena_allocator(&arena)
+	// {
+	// 	str := string(TEST_INPUT)
+	// 	r := part1(&str, alloc)
+	// 	// fmt.println(r)
+	// 	assert(r == 8)
+	// }
+	// {
+	// 	str := string(TEST_INPUT)
+	// 	r := part2(&str, alloc)
+	// 	// fmt.println(r)
+	// 	assert(r == 2286)
+	// }
 	{
 		str := string(TEST_INPUT)
-		r := part1(&str, alloc)
-		// fmt.println(r)
-		assert(r == 8)
-	}
-	{
-		str := string(TEST_INPUT)
-		r := part2(&str, alloc)
-		// fmt.println(r)
-		assert(r == 2286)
+		r1, r2 := part3(&str, alloc)
+		// fmt.println(r1, r2)
+		assert(r1 == 8)
+		assert(r2 == 2286)
 	}
 	{
 		input, ok := os.read_entire_file_from_filename("input")
 		defer delete(input)
 		assert(ok)
+		// {
+		// 	str := string(input)
+		// 	r := part1(&str, alloc)
+		// 	// fmt.println(r)
+		// 	assert(r == 2449)
+		// }
+		// {
+		// 	str := string(input)
+		// 	r := part2(&str, alloc)
+		// 	// fmt.println(r)
+		// 	assert(r == 63981)
+		// }
 		{
 			str := string(input)
-			r := part1(&str, alloc)
-			// fmt.println(r)
-			assert(r == 2449)
-		}
-		{
-			str := string(input)
-			r := part2(&str, alloc)
-			// fmt.println(r)
-			assert(r == 63981)
+			r1, r2 := part3(&str, alloc)
+			assert(r1 == 2449)
+			assert(r2 == 63981)
 		}
 	}
 	elapsed := time.tick_since(start_tick)
