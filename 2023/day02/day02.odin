@@ -5,6 +5,7 @@ import "core:mem"
 import "core:os"
 import "core:strconv"
 import "core:strings"
+import "core:time"
 
 main :: proc() {
 	// freeing memory is not really needed for a program like this, but
@@ -133,6 +134,7 @@ part2 :: proc(input: ^string) -> int {
 }
 
 _main :: proc() {
+	start_tick := time.tick_now()
 	{
 		str := string(TEST_INPUT)
 		r := part1(&str)
@@ -163,4 +165,8 @@ _main :: proc() {
 			assert(r == 63981)
 		}
 	}
+	elapsed := time.tick_since(start_tick)
+	ms := time.duration_milliseconds(elapsed)
+	ns := time.duration_nanoseconds(elapsed)
+	fmt.println(ms, "ms,", ns, "ns")
 }
