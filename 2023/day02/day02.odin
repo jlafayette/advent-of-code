@@ -44,29 +44,27 @@ Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red
 Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green
 `
 
-part1 :: proc(input: ^string) -> int {
+part1 :: proc(input: ^string, alloc: mem.Allocator) -> int {
 	sum := 0
 	// 12 red cubes, 13 green cubes, and 14 blue cubes
 	red_max := 12
 	green_max := 13
 	blue_max := 14
+
 	for line in strings.split_lines_iterator(input) {
-		strs := strings.split_n(line, ": ", 2)
-		defer delete(strs)
+		defer free_all(alloc)
+		strs := strings.split_n(line, ": ", 2, alloc)
 		if len(strs) != 2 {continue}
-		id_parts := strings.split(strs[0], " ")
-		defer delete(id_parts)
+		id_parts := strings.split(strs[0], " ", alloc)
 		assert(len(id_parts) == 2)
 		id_str := id_parts[1]
 		id, ok := strconv.parse_int(id_str)
 		assert(ok)
 		possible := true
 		for draw_str in strings.split_iterator(&strs[1], "; ") {
-			part_strs := strings.split(draw_str, ", ")
-			defer delete(part_strs)
+			part_strs := strings.split(draw_str, ", ", alloc)
 			for part_str in part_strs {
-				col_draw := strings.split(part_str, " ")
-				defer delete(col_draw)
+				col_draw := strings.split(part_str, " ", alloc)
 				assert(len(col_draw) == 2)
 				count, ok := strconv.parse_int(col_draw[0])
 				assert(ok)
@@ -94,14 +92,13 @@ part1 :: proc(input: ^string) -> int {
 }
 
 
-part2 :: proc(input: ^string) -> int {
+part2 :: proc(input: ^string, alloc: mem.Allocator) -> int {
 	sum := 0
 	for line in strings.split_lines_iterator(input) {
-		strs := strings.split_n(line, ": ", 2)
-		defer delete(strs)
+		defer free_all(alloc)
+		strs := strings.split_n(line, ": ", 2, alloc)
 		if len(strs) != 2 {continue}
-		id_parts := strings.split(strs[0], " ")
-		defer delete(id_parts)
+		id_parts := strings.split(strs[0], " ", alloc)
 		assert(len(id_parts) == 2)
 		id_str := id_parts[1]
 		id, ok := strconv.parse_int(id_str)
@@ -110,11 +107,9 @@ part2 :: proc(input: ^string) -> int {
 		min_green := 0
 		min_blue := 0
 		for draw_str in strings.split_iterator(&strs[1], "; ") {
-			part_strs := strings.split(draw_str, ", ")
-			defer delete(part_strs)
+			part_strs := strings.split(draw_str, ", ", alloc)
 			for part_str in part_strs {
-				col_draw := strings.split(part_str, " ")
-				defer delete(col_draw)
+				col_draw := strings.split(part_str, " ", alloc)
 				assert(len(col_draw) == 2)
 				count, ok := strconv.parse_int(col_draw[0])
 				assert(ok)
@@ -135,33 +130,36 @@ part2 :: proc(input: ^string) -> int {
 
 _main :: proc() {
 	start_tick := time.tick_now()
+	buf: [1024]byte
+	arena: mem.Arena
+	mem.arena_init(&arena, buf[:])
+	alloc := mem.arena_allocator(&arena)
 	{
 		str := string(TEST_INPUT)
-		r := part1(&str)
-		fmt.println(r)
+		r := part1(&str, alloc)
+		// fmt.println(r)
 		assert(r == 8)
 	}
 	{
 		str := string(TEST_INPUT)
-		r := part2(&str)
-		fmt.println(r)
+		r := part2(&str, alloc)
+		// fmt.println(r)
 		assert(r == 2286)
 	}
 	{
 		input, ok := os.read_entire_file_from_filename("input")
 		defer delete(input)
 		assert(ok)
-
 		{
 			str := string(input)
-			r := part1(&str)
-			fmt.println(r)
+			r := part1(&str, alloc)
+			// fmt.println(r)
 			assert(r == 2449)
 		}
 		{
 			str := string(input)
-			r := part2(&str)
-			fmt.println(r)
+			r := part2(&str, alloc)
+			// fmt.println(r)
 			assert(r == 63981)
 		}
 	}
