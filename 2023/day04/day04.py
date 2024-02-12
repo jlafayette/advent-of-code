@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 
@@ -7,7 +8,9 @@ def read_input():
     return data
 
 
+start_time = time.perf_counter()
 INPUT = read_input()
+read_time = time.perf_counter() - start_time
 
 
 DATA = """Card 1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53
@@ -95,3 +98,6 @@ part1(DATA)
 part1(INPUT)
 part2(DATA2)
 part2(INPUT)
+total_elapsed = time.perf_counter() - start_time
+print(f" read: {read_time*1000:.4f} ms")
+print(f"total: {total_elapsed*1000:.4f} ms")
