@@ -1,4 +1,5 @@
 import re
+import time
 from pathlib import Path
 
 
@@ -8,7 +9,10 @@ def read_input():
     return data
 
 
+start = time.perf_counter()
 INPUT = read_input()
+read_input_elapsed = time.perf_counter() - start
+print(f"read: {read_input_elapsed*1000:.4f} ms")
 
 
 DATA = """467..114..
@@ -129,8 +133,7 @@ def part2(data):
 
     print("Sum:", total)
 
-import time
-start = time.perf_counter()
+
 part1(DATA)
 part1(INPUT)
 part2(DATA2)
