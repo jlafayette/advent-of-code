@@ -122,15 +122,20 @@ def part2(data):
                     # print("==", part_num)
                     adjacent.append(part_num)
 
-            print("adj:", adjacent)
+            # print("adj:", adjacent)
             if len(adjacent) == 2:
                 ratio = adjacent[0] * adjacent[1]
                 total += ratio
 
     print("Sum:", total)
 
-
-# part1(DATA)
-# part1(INPUT)
+import time
+start = time.perf_counter()
+part1(DATA)
+part1(INPUT)
 part2(DATA2)
 part2(INPUT)
+end = time.perf_counter()
+elapsed = end - start
+print(f"Took {elapsed*1000:.4f} ms")
+
