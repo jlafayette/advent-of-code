@@ -185,19 +185,13 @@ row_init :: proc(r: ^Row, line: string) {
 				finish_n = true
 			}
 		}
-		if finish_n && n_wip {
+		if (finish_n && n_wip) || (n_wip && i == len(line) - 1) {
 			v, ok := strconv.parse_int(line[n.start:n.end])
 			assert(ok)
 			n.v = v
 			append(&r.numbers, n)
 			n_wip = false
 		}
-	}
-	if n_wip {
-		v, ok := strconv.parse_int(line[n.start:n.end])
-		assert(ok)
-		n.v = v
-		append(&r.numbers, n)
 	}
 }
 row_delete :: proc(r: ^Row) {
