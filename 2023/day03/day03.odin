@@ -35,7 +35,8 @@ main :: proc() {
 	_main()
 }
 
-TEST_INPUT :: `467..114..
+TEST_INPUT :: `..........
+467..114..
 ...*......
 ..35..633.
 ......#...
@@ -53,7 +54,7 @@ Number :: struct {
 	end:   int,
 }
 
-chomp_next_int :: proc(s: string) -> (n: Number, ok: bool) {
+next_int :: proc(s: string) -> (n: Number, ok: bool) {
 	loop: for r, i in s {
 		switch r {
 		case '0' ..= '9':
@@ -107,11 +108,9 @@ part1 :: proc(input: string) -> int {
 		// fmt.println("n", next)
 		// fmt.println("")
 
-		// n := Number{}
-		// ok := true
 		rest := line[:]
 		offset := 0
-		n, ok := chomp_next_int(rest)
+		n, ok := next_int(rest)
 		for ok {
 			si := max(0, n.start - 1 + offset)
 			ei := min(n.end + 1 + offset, len(line))
@@ -143,10 +142,138 @@ part1 :: proc(input: string) -> int {
 
 			rest = rest[n.end:]
 			offset += n.end
-			n, ok = chomp_next_int(rest)
+			n, ok = next_int(rest)
 		}
 	}
 
+
+	return total
+}
+
+
+Row :: struct {
+	gears:   [dynamic]int,
+	numbers: [dynamic]Number,
+	line:    string,
+}
+row_init :: proc(r: ^Row, line: string) {
+	r.line = line
+	clear(&r.gears)
+	clear(&r.numbers)
+	n: Number
+	n_wip := false
+	for char, i in line {
+		finish_n := false
+		switch char {
+		case '*':
+			{
+				append(&r.gears, i)
+				finish_n = true
+			}
+		case '0' ..= '9':
+			{
+				if n_wip {
+					n.end = i + 1
+				} else {
+					n.start = i
+					n.end = i + 1
+					n_wip = true
+				}
+			}
+		case:
+			{
+				finish_n = true
+			}
+		}
+		if finish_n && n_wip {
+			v, ok := strconv.parse_int(line[n.start:n.end])
+			assert(ok)
+			n.v = v
+			append(&r.numbers, n)
+			n_wip = false
+		}
+	}
+	if n_wip {
+		v, ok := strconv.parse_int(line[n.start:n.end])
+		assert(ok)
+		n.v = v
+		append(&r.numbers, n)
+	}
+}
+row_delete :: proc(r: ^Row) {
+	delete(r.gears)
+	delete(r.numbers)
+}
+rows_delete :: proc(rows: [3]^Row) {
+	for r in rows {
+		row_delete(r)
+	}
+}
+rows_print :: proc(rows: [3]^Row) {
+	fmt.println()
+	for r in rows {
+		if r.line == "" {
+			fmt.println("   ...")
+		} else {
+			b := strings.builder_make()
+			defer strings.builder_destroy(&b)
+			fmt.sbprint(&b, "  ", r.line, "gears:", r.gears, "numbers: ")
+			for n, i in r.numbers {
+				fmt.sbprintf(&b, "%d (%d,%d)", n.v, n.start, n.end)
+				if i != len(r.numbers) - 1 {
+					fmt.sbprint(&b, ", ")
+				}
+			}
+			fmt.println(strings.to_string(b))
+		}
+	}
+	fmt.println()
+}
+rows_next :: proc(rows: ^[3]^Row, line: string) {
+	row_init(rows.x, line)
+	rows^.xyz = rows^.yzx
+}
+rows_score :: proc(rows: [3]^Row) -> (score: int) {
+	adjacent := make([dynamic]int, 0, 4)
+	defer delete(adjacent)
+	for x in rows.y.gears {
+		clear(&adjacent)
+		for n in rows.x.numbers {
+			if x >= n.start - 1 && x <= n.end {
+				append(&adjacent, n.v)
+			}
+		}
+		for n in rows.y.numbers {
+			if x == n.start - 1 || x == n.end {
+				append(&adjacent, n.v)
+			}
+		}
+		for n in rows.z.numbers {
+			if x >= n.start - 1 && x <= n.end {
+				append(&adjacent, n.v)
+			}
+		}
+		if len(adjacent) == 2 {
+			ratio := adjacent[0] * adjacent[1]
+			score += ratio
+		}
+	}
+	return
+}
+
+
+part2 :: proc(input: ^string) -> int {
+	total := 0
+	row_backing: [3]Row
+	rows: [3]^Row = {&row_backing.x, &row_backing.y, &row_backing.z}
+	defer rows_delete(rows)
+	for line in strings.split_lines_iterator(input) {
+		rows_next(&rows, line)
+		total += rows_score(rows)
+	}
+	// score last row
+	rows_next(&rows, "")
+	total += rows_score(rows)
 
 	return total
 }
@@ -159,12 +286,12 @@ _main :: proc() {
 		fmt.println(r)
 		assert(r == 4361)
 	}
-	// {
-	// 	str := string(TEST_INPUT)
-	// 	r := part2(&str)
-	// 	// fmt.println(r)
-	// 	assert(r == )
-	// }
+	{
+		str := string(TEST_INPUT)
+		r := part2(&str)
+		fmt.println(r)
+		assert(r == 467835)
+	}
 	{
 		input, ok := os.read_entire_file_from_filename("input")
 		defer delete(input)
@@ -174,12 +301,12 @@ _main :: proc() {
 			fmt.println(r)
 			assert(r == 527369)
 		}
-		// {
-		// 	str := string(input)
-		// 	r := part2(&str)
-		// 	// fmt.println(r)
-		// 	assert(r == 63981)
-		// }
+		{
+			str := string(input)
+			r := part2(&str)
+			fmt.println(r)
+			assert(r == 73074886)
+		}
 	}
 	elapsed := time.tick_since(start_tick)
 	ms := time.duration_milliseconds(elapsed)
