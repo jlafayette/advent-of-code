@@ -281,35 +281,50 @@ part2 :: proc(input: ^string) -> int {
 
 _main :: proc() {
 	start_tick := time.tick_now()
+	read_input_tick: time.Tick
+	read_input_duration: time.Duration
 	{
 		r := part1(TEST_INPUT)
-		fmt.println(r)
+		// fmt.println(r)
 		assert(r == 4361)
 	}
 	{
 		str := string(TEST_INPUT)
 		r := part2(&str)
-		fmt.println(r)
+		// fmt.println(r)
 		assert(r == 467835)
 	}
+	part1_tick := time.tick_now()
+	part1_duration := time.tick_diff(start_tick, part1_tick)
 	{
 		input, ok := os.read_entire_file_from_filename("input")
 		defer delete(input)
 		assert(ok)
+		read_input_tick = time.tick_now()
+		read_input_duration = time.tick_diff(part1_tick, read_input_tick)
 		{
 			r := part1(string(input))
-			fmt.println(r)
+			// fmt.println(r)
 			assert(r == 527369)
 		}
 		{
 			str := string(input)
 			r := part2(&str)
-			fmt.println(r)
+			// fmt.println(r)
 			assert(r == 73074886)
 		}
 	}
-	elapsed := time.tick_since(start_tick)
-	ms := time.duration_milliseconds(elapsed)
-	ns := time.duration_nanoseconds(elapsed)
-	fmt.println(ms, "ms,", ns, "ns")
+	part2_tick := time.tick_now()
+	part2_duration := time.tick_diff(read_input_tick, part2_tick)
+	total_duration := time.tick_diff(start_tick, part2_tick)
+
+	part1_ms := time.duration_milliseconds(part1_duration)
+	read_input_ms := time.duration_milliseconds(read_input_duration)
+	part2_ms := time.duration_milliseconds(part2_duration)
+	total_ms := time.duration_milliseconds(total_duration)
+
+	fmt.printf("part1: %.4f ms\n", part1_ms)
+	fmt.printf(" read: %.4f ms\n", read_input_ms)
+	fmt.printf("part2: %.4f ms\n", part2_ms)
+	fmt.printf("total: %.4f ms\n", total_ms)
 }
