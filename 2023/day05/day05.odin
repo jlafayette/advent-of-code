@@ -1,9 +1,11 @@
 package day05
 
+import "core:container/queue"
 import "core:fmt"
 import "core:math"
 import "core:mem"
 import "core:os"
+import "core:slice"
 import "core:strconv"
 import "core:strings"
 import "core:time"
@@ -220,6 +222,10 @@ R :: struct {
 	lo: int,
 	hi: int,
 }
+r_less :: proc(i, j: R) -> bool {
+	// true if i < j
+	return i.lo < j.lo || i.hi < j.hi
+}
 r_continuous :: proc(r: R, breakpoints: map[int]bool, maps: []Map) -> bool {
 	if r.lo == r.hi {
 		return true
@@ -247,6 +253,27 @@ break_all :: proc(r: R, breakpoints: map[int]bool, maps: []Map, acc: ^[dynamic]R
 		break_all(rs[0], breakpoints, maps, acc)
 		break_all(rs[1], breakpoints, maps, acc)
 	}
+}
+break_all2 :: proc(
+	init_r: R,
+	breakpoints: map[int]bool,
+	maps: []Map,
+	acc: ^[dynamic]R,
+	q: ^queue.Queue(R),
+) {
+	// q: queue.Queue(R)
+	queue.push_back(q, init_r)
+	for queue.len(q^) > 0 {
+		r := queue.pop_front(q)
+		// assert(err == nil)
+		if r_continuous(r, breakpoints, maps) {
+			append(acc, r)
+		} else {
+			rs := r_break(r)
+			queue.push_back_elems(q, rs.x, rs.y)
+		}
+	}
+	slice.sort_by(acc[:], r_less)
 }
 join_all :: proc(rs: []R, breakpoints: map[int]bool, maps: []Map) -> [dynamic]R {
 	new_rs: [dynamic]R
@@ -293,6 +320,10 @@ part2 :: proc(input: string) -> int {
 	defer delete(breakpoints)
 	dyn_pairs := pairs(seeds[:])
 	defer delete(dyn_pairs)
+	acc: [dynamic]R
+	defer delete(acc)
+	break_q: queue.Queue(R)
+	defer queue.destroy(&break_q)
 	for pair in dyn_pairs {
 		// no idea why these are named like this... just
 		// translating from the python solution and it's
@@ -302,10 +333,20 @@ part2 :: proc(input: string) -> int {
 		// fmt.println(start, len_)
 		lo := start
 		hi := start + len_ - 1
-		acc: [dynamic]R
-		defer delete(acc)
-		break_all(R{lo, hi}, breakpoints, maps[:], &acc)
-		// fmt.println(acc[:])
+
+		// recursive and loop solutions seem to perform about the same...
+		// for some reason the loop solution needs to be sorted afterwards
+		// to get the right answer, which may be slowing it down a little
+
+		// recursive solution
+		// acc: [dynamic]R
+		// defer delete(acc)
+		// break_all(R{lo, hi}, breakpoints, maps[:], &acc)
+
+		// loop solution with queue
+		clear(&acc)
+		queue.clear(&break_q)
+		break_all2(R{lo, hi}, breakpoints, maps[:], &acc, &break_q)
 
 		ranges := join_all(acc[:], breakpoints, maps[:])
 		defer delete(ranges)
