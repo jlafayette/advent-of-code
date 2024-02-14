@@ -295,7 +295,7 @@ part2 :: proc(input: string) -> int {
 	defer delete(dyn_pairs)
 	for pair in dyn_pairs {
 		// no idea why these are named like this... just
-		// translating from the pythong solution and it's
+		// translating from the python solution and it's
 		// been too long to remember what I was thinking
 		start := pair.x
 		len_ := pair.y

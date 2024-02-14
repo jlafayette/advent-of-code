@@ -1,4 +1,5 @@
 import sys
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -10,7 +11,10 @@ def read_input():
     return data
 
 
+start_time = time.perf_counter()
 INPUT = read_input()
+read_time = time.perf_counter() - start_time
+print(f" read: {read_time*1000:.4f} ms")
 
 
 DATA = """\
@@ -93,7 +97,7 @@ def part1(data):
 
     sections = data.strip().split("\n\n")
     seeds = [int(x) for x in sections[0].strip().split(": ")[-1].split(" ")]
-    print(seeds)
+    # print(seeds)
 
     maps = [Map(m) for m in sections[1:]]
 
@@ -374,7 +378,7 @@ def part2_3(data):
     global breakpoints
     breakpoints = get_breakpoints()
     for start, len_ in pairs(seeds):
-        print(start, len_)
+        # print(start, len_)
         # for i in range(start, start+len_):
         #     print(i, "", end="")
         # print("")
@@ -401,12 +405,15 @@ def part2_3(data):
         for r in ranges:
             lowest = min(lowest, f(r.lo))
 
-    print(breakpoints)
-    print(len(breakpoints))
+    # print(breakpoints)
+    # print(len(breakpoints))
     print(lowest)
 
 
-# part1(DATA)
-# part1(INPUT)
+part1(DATA)
+part1(INPUT)
 part2_3(DATA2)
 part2_3(INPUT)
+total_time = time.perf_counter() - start_time
+print(f"total: {total_time*1000:.4f} ms")
+
