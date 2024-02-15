@@ -1,3 +1,4 @@
+import time
 import dataclasses
 import functools
 from operator import mul
@@ -10,6 +11,7 @@ def read_input():
     return data
 
 
+start_time = time.perf_counter()
 INPUT = read_input()
 
 
@@ -62,7 +64,7 @@ Distance:  940200\
 
 input_file2 = Path(__file__).absolute().parent / "input2"
 INPUT2 = input_file2.read_text().strip()
-
+read_time = time.perf_counter()
 
 def part2(data):
     race = parse(data)[0]
@@ -74,3 +76,8 @@ part1(DATA)
 part1(INPUT)
 part2(DATA2)
 part2(INPUT2)
+end_time = time.perf_counter()
+read_elapsed = read_time - start_time
+print(f" read: {read_elapsed*1000:.4f} ms")
+total_elapsed = end_time - start_time
+print(f"total: {total_elapsed*1000:.4f} ms")
