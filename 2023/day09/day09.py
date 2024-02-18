@@ -53,8 +53,12 @@ def part1_solve(readings: list[int]) -> int:
 def part1(data):
     d = parse(data)
     total = 0
+    print("part1 loop")
     for x in d:
-        total += part1_solve(x)
+        a = part1_solve(x)
+        # print(a)
+        total += a
+        print(a, total)
     print("Total:", total)
 
 
