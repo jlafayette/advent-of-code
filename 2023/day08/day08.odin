@@ -2,6 +2,7 @@ package day08
 
 import "core:bytes"
 import "core:fmt"
+import "core:math"
 import "core:mem"
 import "core:os"
 import "core:slice"
@@ -151,8 +152,78 @@ part1 :: proc(input: []u8) -> int {
 	}
 	return steps
 }
+
+TEST_INPUT3 :: `LR
+
+11A = (11B, XXX)
+11B = (XXX, 11Z)
+11Z = (11B, XXX)
+22A = (22B, XXX)
+22B = (22C, 22C)
+22C = (22Z, 22Z)
+22Z = (22B, 22B)
+XXX = (XXX, XXX)`
+
+Prev :: struct {
+	i:  int,
+	id: Tag,
+}
 part2 :: proc(input: []u8) -> int {
-	return 0
+	dirs, node_map := parse(input)
+	starting_nodes: [dynamic]^Node
+	for _, node in &node_map {
+		if node.tag.z == 'A' {
+			append(&starting_nodes, &node)
+		}
+	}
+	acc: [dynamic]int
+	defer delete(acc)
+	zzzs_step: [dynamic]int
+	defer delete(zzzs_step)
+	node_loop: for starting_node in starting_nodes {
+		c := starting_node
+		prev: map[Prev]bool
+		defer delete(prev)
+		steps := 0
+		// fmt.println(string(c.tag[:]))
+		clear(&zzzs_step)
+		cycle_found := false
+		loop: for {
+			for d, i in dirs {
+				id_ := Prev{i, c.tag}
+				if c.tag.z == 'Z' {
+					// fmt.println("  Z at step", steps, id_)
+					append(&zzzs_step, steps)
+				}
+				if len(zzzs_step) >= 3 {
+					a := zzzs_step[0]
+					b := zzzs_step[1]
+					c := zzzs_step[2]
+					// fmt.println("  ", c - b, b - a)
+					append(&acc, c - b)
+					continue node_loop
+				}
+				if !cycle_found && id_ in prev {
+					// fmt.println("  found cycle", id_, "steps:", steps)
+					cycle_found = true
+				}
+				prev[id_] = true
+				switch (d) {
+				case 'L':
+					c = c.lf
+				case 'R':
+					c = c.rt
+				}
+				steps += 1
+			}
+		}
+	}
+	// fmt.println(acc)
+	result := 1
+	for x in acc {
+		result = math.lcm(x, result)
+	}
+	return result
 }
 
 _main :: proc() {
@@ -183,17 +254,17 @@ _main :: proc() {
 	}
 	part1_tick := time.tick_now()
 	part1_duration := time.tick_diff(start_tick, part1_tick)
-	// {
-	// 	t := transmute([]u8)string(TEST_INPUT)
-	// 	r := part2(t)
-	// 	fmt.println(r)
-	// 	assert(r == 0)
-	// }
-	// {
-	// 	r := part2(input)
-	// 	fmt.println(r)
-	// 	assert(r == 0)
-	// }
+	{
+		t := transmute([]u8)string(TEST_INPUT3)
+		r := part2(t)
+		fmt.println(r)
+		assert(r == 6)
+	}
+	{
+		r := part2(input)
+		fmt.println(r)
+		assert(r == 15299095336639)
+	}
 	part2_tick := time.tick_now()
 	part2_duration := time.tick_diff(part1_tick, part2_tick)
 	total_duration := time.tick_diff(start_tick, part2_tick)
