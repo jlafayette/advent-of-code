@@ -183,13 +183,14 @@ part2 :: proc(input: []u8) -> int {
 	defer delete(acc)
 	zzzs_step: [dynamic]int
 	defer delete(zzzs_step)
+	prev: map[Prev]bool
+	defer delete(prev)
 	node_loop: for starting_node in starting_nodes {
 		c := starting_node
-		prev: map[Prev]bool
-		defer delete(prev)
 		steps := 0
 		// fmt.println(string(c.tag[:]))
 		clear(&zzzs_step)
+		clear(&prev)
 		cycle_found := false
 		loop: for {
 			for d, i in dirs {
