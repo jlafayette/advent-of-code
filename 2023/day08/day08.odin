@@ -83,7 +83,8 @@ node_print :: proc(node: ^Node) {
 		sep = "",
 	)
 }
-node_from_line :: proc(node: ^Node, line: []byte) {
+node_from_line :: proc(line: []byte) -> Node {
+	node: Node
 	split1 := bytes.split(line, {' ', '=', ' '})
 	defer delete(split1)
 	assert(len(split1) == 2)
@@ -93,49 +94,32 @@ node_from_line :: proc(node: ^Node, line: []byte) {
 	assert(len(split_tags) == 2)
 	node.lf_tag = tag_copy(split_tags[0][1:])
 	node.rt_tag = tag_copy(split_tags[1][:3])
+	return node
 }
 
-parse :: proc(
-	input: []byte,
-	node_backing: ^[dynamic]Node,
-) -> (
-	dirs: []byte,
-	node_map: map[Tag]^Node,
-) {
+parse :: proc(input: []byte) -> (dirs: []byte, node_map: map[Tag]Node) {
 	sections := bytes.split(input, {'\n', '\n'})
 	assert(len(sections) == 2)
 	defer delete(sections)
 	dirs = make([]byte, len(sections[0]))
 	copy(dirs, sections[0])
 
-	line_count := 0
-	for char in sections[1] {
-		if char == '\n' {
-			line_count += 1
-		}
-	}
-	resize_dynamic_array(node_backing, line_count)
-
 	for line in bytes.split_iterator(&sections[1], {'\n'}) {
-		append(node_backing, Node{})
-		node: ^Node = &node_backing[len(node_backing) - 1]
-		node_from_line(node, line)
+		node := node_from_line(line)
 		node_map[node.tag] = node
 	}
-	for _, v in node_map {
+	for _, v in &node_map {
 		ok := false
-		v.lf, ok = node_map[v.lf_tag]
+		v.lf, ok = &node_map[v.lf_tag]
 		assert(ok, "missing lf tag")
-		v.rt, ok = node_map[v.rt_tag]
+		v.rt, ok = &node_map[v.rt_tag]
 		assert(ok, "missing rt tag")
 	}
 	return
 }
 
 part1 :: proc(input: []u8) -> int {
-	node_backing: [dynamic]Node
-	defer delete(node_backing)
-	dirs, node_map := parse(input, &node_backing)
+	dirs, node_map := parse(input)
 	defer {
 		delete(dirs)
 		delete(node_map)
@@ -144,7 +128,7 @@ part1 :: proc(input: []u8) -> int {
 	assert(start_ok)
 	end, end_ok := node_map[TagEnd]
 	assert(end_ok)
-	c := start
+	c: ^Node = &start
 	steps := 0
 	for {
 		for d in dirs {
