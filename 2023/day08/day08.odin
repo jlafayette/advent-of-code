@@ -170,7 +170,10 @@ Prev :: struct {
 }
 part2 :: proc(input: []u8) -> int {
 	dirs, node_map := parse(input)
+	defer delete(dirs)
+	defer delete(node_map)
 	starting_nodes: [dynamic]^Node
+	defer delete(starting_nodes)
 	for _, node in &node_map {
 		if node.tag.z == 'A' {
 			append(&starting_nodes, &node)
