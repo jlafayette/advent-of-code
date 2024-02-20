@@ -344,8 +344,13 @@ def part2(data):
     grid.flood_fill()
 
 
-# part1(DATA)
-# part1(DATA2)
-# part1(INPUT)
+import time
+start_time = time.perf_counter()
+part1(DATA)
+part1(DATA2)
+part1(INPUT)
 part2(DATA2_1)
 part2(INPUT)
+total_time = time.perf_counter() - start_time
+print(f"total: {total_time*1000:.4f} ms")
+
