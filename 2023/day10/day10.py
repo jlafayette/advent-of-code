@@ -112,8 +112,8 @@ class Grid:
             right = self.get(x+1, y)
             if right and right.type in "-7J" and c.type in "-FL":
                 return DirLoc.from_loc(right, c)
-        self.print_neighborhood(f)
-        self.print_neighborhood(c)
+        # self.print_neighborhood(f)
+        # self.print_neighborhood(c)
 
         raise ValueError("no second connection")
 
@@ -122,7 +122,7 @@ def part1(data):
     grid = Grid(data)
 
     s_loc = grid.find_s()
-    print(s_loc)
+    # print(s_loc)
 
     # follow pipes around until next is already visited
     # alternate between two options
@@ -150,8 +150,8 @@ def part1(data):
         return DirLoc.from_loc(a, loc), DirLoc.from_loc(b, loc)
 
     c1, c2 = find_s_connections(s_loc)
-    print(c1)
-    print(c2)
+    # print(c1)
+    # print(c2)
     distance = 1
     visited: set[tuple[int, int]] = set()
     visited.add((c1.x, c1.y))
@@ -299,7 +299,7 @@ class Grid2(Grid):
             f(x2, y2)
 
         # debug print flood fill
-        out = ""
+        # out = ""
         inside_count = 0
         for y, row in enumerate(self.rows()):
             for x, char in enumerate(row):
@@ -309,15 +309,17 @@ class Grid2(Grid):
                     (x, y+1) in corners and
                     (x+1, y+1) in corners
                 ):
-                    out += "."
+                    # out += "."
+                    continue
                 elif (x, y) in self._visited:
-                    out += self.get(x, y).type
+                    # out += self.get(x, y).type
+                    continue
                 else:
-                    out += "I"
+                    # out += "I"
                     inside_count += 1
-            out += "\n"
+            # out += "\n"
         # print(out)
-        (Path(__file__).absolute().parent / "debug").write_text(out)
+        # (Path(__file__).absolute().parent / "debug").write_text(out)
         print("Inside count:", inside_count)
 
 
@@ -338,7 +340,7 @@ def part2(data):
             break
         c1 = next_c1
 
-    grid.debug_print()
+    # grid.debug_print()
 
     # do a flood fill from 0,0 corner along edges
     grid.flood_fill()
