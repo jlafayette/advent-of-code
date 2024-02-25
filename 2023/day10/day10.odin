@@ -219,7 +219,11 @@ part1 :: proc(input: []u8) -> int {
 	return distance
 }
 P :: [2]int
-Q :: queue.Queue([4]int)
+E :: struct {
+	a: P,
+	b: P,
+}
+Q :: queue.Queue(E)
 
 // G.visited [2]int (square)
 // G.conn    [4]int (square to square)
@@ -277,7 +281,9 @@ set_conn_make :: proc(w: int, h: int) -> SetConn {
 	return s
 }
 // check if connection exists between positions a and b
-set_conn_contains :: proc(s: ^SetConn, a, b: P) -> bool {
+set_conn_contains :: proc(s: ^SetConn, e: E) -> bool {
+	a := e.a
+	b := e.b
 	i := a.x + (s.w * a.y)
 	bi := b.x + (s.w * b.y)
 	if i < 0 || bi < 0 {
@@ -310,7 +316,9 @@ set_conn_contains :: proc(s: ^SetConn, a, b: P) -> bool {
 	}
 	return conn in a_conn
 }
-set_conn_add :: proc(s: ^SetConn, a, b: P) {
+set_conn_add :: proc(s: ^SetConn, e: E) {
+	a := e.a
+	b := e.b
 	ai := a.x + (s.w * a.y)
 	bi := b.x + (s.w * b.y)
 	if ai < 0 || bi < 0 {
@@ -405,10 +413,10 @@ g2_find_s_connections :: proc(g: ^Grid2) -> (DirLoc, DirLoc) {
 	return find_s_connections(&g.g1, g.s)
 }
 g2_mark_conn :: proc(g: ^Grid2, a, b: Loc) {
-	set_add(&g.conn, P{a.x, a.y}, P{b.x, b.y})
+	set_add(&g.conn, E{{a.x, a.y}, {b.x, b.y}})
 }
 g2_is_conn :: proc(g: ^Grid2, a, b: Loc) -> bool {
-	return set_contains(&g.conn, P{a.x, a.y}, P{b.x, b.y})
+	return set_contains(&g.conn, E{{a.x, a.y}, {b.x, b.y}})
 }
 g2_mark_visited :: proc(g: ^Grid2, loc: Loc) {
 	set_add(&g.visited, P{loc.x, loc.y})
@@ -419,16 +427,16 @@ g2_is_visited :: proc(g: ^Grid2, loc: Loc) -> bool {
 g2_f :: proc(g: ^Grid2, x, y: int) {
 	tracy.ZoneN("g2_f")
 	if x <= g.w {
-		queue.push_back(&g.q, [4]int{x, y, x + 1, y})
+		queue.push_back(&g.q, E{{x, y}, {x + 1, y}})
 	}
 	if x > 0 {
-		queue.push_back(&g.q, [4]int{x, y, x - 1, y})
+		queue.push_back(&g.q, E{{x, y}, {x - 1, y}})
 	}
 	if y <= g.h {
-		queue.push_back(&g.q, [4]int{x, y, x, y + 1})
+		queue.push_back(&g.q, E{{x, y}, {x, y + 1}})
 	}
 	if y > 0 {
-		queue.push_back(&g.q, [4]int{x, y, x, y - 1})
+		queue.push_back(&g.q, E{{x, y}, {x, y - 1}})
 	}
 }
 g2_flood_fill :: proc(g: ^Grid2) -> int {
@@ -450,14 +458,14 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 			break
 		}
 		edge := queue.pop_front(&g.q)
-		x1 := edge[0]
-		y1 := edge[1]
-		x2 := edge[2]
-		y2 := edge[3]
-		if set_contains(&visited, P{x1, y1}, P{x2, y2}) {
+		x1 := edge.a.x
+		y1 := edge.a.y
+		x2 := edge.b.x
+		y2 := edge.b.y
+		if set_contains(&visited, edge) {
 			continue
 		}
-		set_add(&visited, P{x1, y1}, P{x2, y2})
+		set_add(&visited, edge)
 
 		// does edge cross a pipe edge?
 		horizontal := y1 == y2
@@ -474,7 +482,7 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 			e = {x1, y}
 		}
 		// cross edge s -> e
-		if set_contains(&g.conn, s, e) {
+		if set_contains(&g.conn, E{s, e}) {
 			continue
 		}
 		set_add(&corners, P{x1, y1})
