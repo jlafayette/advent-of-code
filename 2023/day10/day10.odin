@@ -225,6 +225,8 @@ Q :: queue.Queue([4]int)
 // G.conn    [4]int (square to square)
 // visited   [4]int (edges, [2]int+[2]int)
 // corners   [2]int (square corner) grid +1
+
+// Set for 2d positions
 Set2 :: struct {
 	buf: []bool,
 	w:   int,
@@ -242,40 +244,10 @@ set2_make :: proc(w, h: int) -> Set2 {
 }
 set2_contains :: proc(s: ^Set2, p: P) -> bool {
 	i := p.x + (s.w * p.y)
-	when ODIN_DEBUG {
-		if i >= len(s.buf) {
-			fmt.println(
-				"error! tried to access index",
-				i,
-				"which is >= than",
-				len(s.buf),
-				p,
-				s.w,
-				"x",
-				s.h,
-			)
-			assert(false)
-		}
-	}
 	return s.buf[i]
 }
 set2_add :: proc(s: ^Set2, p: P) {
 	i := p.x + (s.w * p.y)
-	when ODIN_DEBUG {
-		if i >= len(s.buf) {
-			fmt.println(
-				"error! tried to set index",
-				i,
-				"which is >= than",
-				len(s.buf),
-				p,
-				s.w,
-				"x",
-				s.h,
-			)
-			assert(false)
-		}
-	}
 	s.buf[i] = true
 }
 set2_destroy :: proc(s: ^Set2) {
@@ -388,76 +360,22 @@ set_conn_destroy :: proc(s: ^SetConn) {
 	delete(s.buf)
 }
 
-
-Set :: struct($T: typeid) {
-	m:      map[T]bool,
-	w:      int,
-	h:      int,
-	size:   int,
-	reads:  int,
-	writes: int,
-	tag:    string,
-}
-setg_make :: proc(w, h, size_mult: int, $T: typeid, tag: string = "") -> Set(T) {
-	size := w * h * size_mult
-	s := Set(T) {
-		m    = make(map[T]bool, size),
-		w    = w,
-		h    = h,
-		size = size,
-		tag  = tag,
-	}
-	return s
-}
-setg_contains :: proc(s: ^$S/Set($T), item: T) -> bool {
-	tracy.ZoneN("set_contains")
-	s.reads += 1
-	return item in s.m
-}
-setg_add :: proc(s: ^$S/Set($T), item: T) {
-	tracy.ZoneN("set_add")
-	s.writes += 1
-	s.m[item] = true
-}
-setg_destroy :: proc(s: ^$S/Set($T)) {
-	when ODIN_DEBUG {
-		b := strings.builder_make();defer strings.builder_destroy(&b)
-		fmt.sbprint(&b, "destroying set ")
-		fmt.sbprint(&b, "'", s.tag, "'", sep = "")
-		fmt.sbprintln(&b, " of type:", typeid_of(T))
-		fmt.sbprintln(&b, "  reads:", s.reads)
-		fmt.sbprintln(&b, "  writes:", s.writes)
-		fmt.sbprintln(&b, "  size:", s.size, "actual:", len(s.m))
-		if len(s.m) > s.size {
-			fmt.sbprintln(&b, "--ERROR: actual len > size")
-		}
-		fmt.print(strings.to_string(b))
-	}
-	delete(s.m)
-}
-set_2i :: #force_inline proc(s: ^$S/Set($T), p: P) -> int {
-	return p.x * s.w + p.y
-}
-
 set_make :: proc {
 	set2_make,
-	setg_make,
 }
 set_contains :: proc {
 	set2_contains,
-	setg_contains,
 	set_conn_contains,
 }
 set_add :: proc {
 	set2_add,
-	setg_add,
 	set_conn_add,
 }
 set_destroy :: proc {
 	set2_destroy,
-	setg_destroy,
 	set_conn_destroy,
 }
+
 
 Grid2 :: struct {
 	using g1: Grid,
@@ -543,24 +461,20 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 
 		// does edge cross a pipe edge?
 		horizontal := y1 == y2
-		sx: int
-		sy: int
-		ex: int
-		ey: int
+		s: P
+		e: P
 		if horizontal {
-			sx = min(x1, x2)
-			sy = y1 - 1
-			ex = min(x1, x2)
-			ey = y1
+			x := min(x1, x2)
+			s = {x, y1 - 1}
+			e = {x, y1}
 		} else {
 			assert(x1 == x2)
-			sx = x1 - 1
-			sy = min(y1, y2)
-			ex = x1
-			ey = min(y1, y2)
+			y := min(y1, y2)
+			s = {x1 - 1, y}
+			e = {x1, y}
 		}
-		// cross edge {sx, sy} -> {ex, ey}
-		if set_contains(&g.conn, P{sx, sy}, P{ex, ey}) {
+		// cross edge s -> e
+		if set_contains(&g.conn, s, e) {
 			continue
 		}
 		set_add(&corners, P{x1, y1})
