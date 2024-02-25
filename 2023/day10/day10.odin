@@ -53,10 +53,10 @@ SJ.L7
 |F--J
 LJ...`
 
+P :: [2]int
 Loc :: struct {
-	x:    int,
-	y:    int,
-	type: u8,
+	using p: P,
+	type:    u8,
 }
 DirLoc :: struct {
 	using loc: Loc,
@@ -87,7 +87,7 @@ grid_destroy :: proc(g: ^Grid) {
 }
 grid_get :: proc(g: ^Grid, x, y: int) -> (Loc, bool) {
 	if x >= 0 && x < g.w && y >= 0 && y < g.h {
-		return Loc{x, y, g.g[y][x]}, true
+		return Loc{{x, y}, g.g[y][x]}, true
 	}
 	return Loc{}, false
 }
@@ -96,12 +96,12 @@ grid_find_s :: proc(g: ^Grid) -> Loc {
 		for x in 0 ..< g.w {
 			char := g.g[y][x]
 			if char == 'S' {
-				return Loc{x, y, 'S'}
+				return Loc{{x, y}, 'S'}
 			}
 		}
 	}
 	assert(false)
-	return Loc{0, 0, '.'}
+	return Loc{{0, 0}, '.'}
 }
 grid_find_second_conn :: proc(g: ^Grid, dl: DirLoc) -> DirLoc {
 	tracy.ZoneN("grid_find_second_conn")
@@ -194,29 +194,26 @@ part1 :: proc(input: []u8) -> int {
 	distance := 1
 	visited: Set2 = set2_make(g.w, g.h)
 	defer set2_destroy(&visited)
-	set_add(&visited, P{c1.x, c1.y})
-	set_add(&visited, P{c2.x, c2.y})
+	set_add(&visited, c1.p)
+	set_add(&visited, c2.p)
 	for {
 		distance += 1
 		next_c1 := grid_find_second_conn(&g, c1)
-		p: [2]int = {next_c1.x, next_c1.y}
-		if set_contains(&visited, p) {
+		if set_contains(&visited, next_c1.p) {
 			break
 		}
 		c1 = next_c1
-		set_add(&visited, p)
+		set_add(&visited, c1.p)
 
 		next_c2 := grid_find_second_conn(&g, c2)
-		p = {next_c2.x, next_c2.y}
-		if set_contains(&visited, p) {
+		if set_contains(&visited, next_c2.p) {
 			break
 		}
 		c2 = next_c2
-		set_add(&visited, p)
+		set_add(&visited, c2.p)
 	}
 	return distance
 }
-P :: [2]int
 E :: struct {
 	a: P,
 	b: P,
@@ -411,16 +408,16 @@ g2_find_s_connections :: proc(g: ^Grid2) -> (DirLoc, DirLoc) {
 	return find_s_connections(&g.g1, g.s)
 }
 g2_mark_conn :: proc(g: ^Grid2, a, b: Loc) {
-	set_add(&g.conn, E{{a.x, a.y}, {b.x, b.y}})
+	set_add(&g.conn, E{a.p, b.p})
 }
 g2_is_conn :: proc(g: ^Grid2, a, b: Loc) -> bool {
-	return set_contains(&g.conn, E{{a.x, a.y}, {b.x, b.y}})
+	return set_contains(&g.conn, E{a.p, b.p})
 }
 g2_mark_visited :: proc(g: ^Grid2, loc: Loc) {
-	set_add(&g.visited, P{loc.x, loc.y})
+	set_add(&g.visited, loc.p)
 }
 g2_is_visited :: proc(g: ^Grid2, loc: Loc) -> bool {
-	return set_contains(&g.visited, P{loc.x, loc.y})
+	return set_contains(&g.visited, loc.p)
 }
 g2_add_neighbors :: proc(g: ^Grid2, p: P) {
 	tracy.ZoneN("g2_add_neighbors")
@@ -458,16 +455,16 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 			break
 		}
 		edge := queue.pop_front(&g.q)
-		x1 := edge.a.x
-		y1 := edge.a.y
-		x2 := edge.b.x
-		y2 := edge.b.y
 		if set_contains(&visited, edge) {
 			continue
 		}
 		set_add(&visited, edge)
 
 		// does edge cross a pipe edge?
+		x1 := edge.a.x
+		y1 := edge.a.y
+		x2 := edge.b.x
+		y2 := edge.b.y
 		horizontal := y1 == y2
 		cross_edge: E
 		if horizontal {
