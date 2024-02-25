@@ -191,30 +191,28 @@ part1 :: proc(input: []u8) -> int {
 	// fmt.println(s_loc)
 
 	c1, c2 := find_s_connections(&g, s_loc)
-	// fmt.println("c1:", loc_to_str(c1))
-	// fmt.println("c2:", loc_to_str(c2))
 	distance := 1
-	visited: map[[2]int]bool;defer delete(visited)
-	visited[[2]int{c1.x, c1.y}] = true
-	visited[[2]int{c2.x, c2.y}] = true
-	// fmt.println(visited)
+	visited: Set2 = set2_make(g.w, g.h)
+	defer set2_destroy(&visited)
+	set_add(&visited, P{c1.x, c1.y})
+	set_add(&visited, P{c2.x, c2.y})
 	for {
 		distance += 1
 		next_c1 := grid_find_second_conn(&g, c1)
 		p: [2]int = {next_c1.x, next_c1.y}
-		if p in visited {
+		if set_contains(&visited, p) {
 			break
 		}
 		c1 = next_c1
-		visited[p] = true
+		set_add(&visited, p)
 
 		next_c2 := grid_find_second_conn(&g, c2)
 		p = {next_c2.x, next_c2.y}
-		if p in visited {
+		if set_contains(&visited, p) {
 			break
 		}
 		c2 = next_c2
-		visited[p] = true
+		set_add(&visited, p)
 	}
 	return distance
 }
