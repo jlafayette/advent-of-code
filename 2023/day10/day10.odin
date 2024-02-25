@@ -225,7 +225,6 @@ Q :: queue.Queue([4]int)
 // G.conn    [4]int (square to square)
 // visited   [4]int (edges, [2]int+[2]int)
 // corners   [2]int (square corner) grid or grid +1?
-// Lookup :: struct {}
 Set2 :: struct {
 	buf: []bool,
 	w:   int,
@@ -242,14 +241,150 @@ set2_make :: proc(w, h: int) -> Set2 {
 	return s
 }
 set2_contains :: proc(s: ^Set2, p: P) -> bool {
-	i := p.x * s.h + p.y
+	i := p.x + (s.w * p.y)
+	when ODIN_DEBUG {
+		if i >= len(s.buf) {
+			fmt.println(
+				"error! tried to access index",
+				i,
+				"which is >= than",
+				len(s.buf),
+				p,
+				s.w,
+				"x",
+				s.h,
+			)
+			assert(false)
+		}
+	}
 	return s.buf[i]
 }
 set2_add :: proc(s: ^Set2, p: P) {
-	i := p.x * s.h + p.y
+	i := p.x + (s.w * p.y)
+	when ODIN_DEBUG {
+		if i >= len(s.buf) {
+			fmt.println(
+				"error! tried to set index",
+				i,
+				"which is >= than",
+				len(s.buf),
+				p,
+				s.w,
+				"x",
+				s.h,
+			)
+			assert(false)
+		}
+	}
 	s.buf[i] = true
 }
 set2_destroy :: proc(s: ^Set2) {
+	delete(s.buf)
+}
+// Keep track of connections
+Conn :: enum {
+	Left,
+	Up,
+	Right,
+	Down,
+}
+Conn_BitSet :: bit_set[Conn]
+SetConn :: struct {
+	buf:  []Conn_BitSet,
+	w:    int,
+	h:    int,
+	size: int,
+}
+set_conn_make :: proc(w: int, h: int) -> SetConn {
+	s := SetConn {
+		buf  = make_slice([]Conn_BitSet, w * h),
+		w    = w,
+		h    = h,
+		size = w * h,
+	}
+	return s
+}
+set_conn_contains :: proc(s: ^SetConn, a, b: P) -> bool {
+	// check if conn is exists between positions a and b
+	i := a.x + (s.w * a.y)
+	bi := b.x + (s.w * b.y)
+	if i < 0 || bi < 0 {
+		return false
+	}
+	a_conn := s.buf[i]
+	if card(a_conn) == 0 {
+		return false
+	}
+	diff := b - a
+	conn: Conn
+	switch diff.x {
+	case 1:
+		{conn = .Right}
+	case -1:
+		{conn = .Left}
+	case 0:
+		{
+			switch diff.y {
+			case 1:
+				{conn = .Down}
+			case -1:
+				{conn = .Up}
+			case:
+				{assert(false)}
+			}
+		}
+	case:
+		{assert(false)}
+	}
+	return conn in a_conn
+}
+set_conn_add :: proc(s: ^SetConn, a, b: P) {
+	ai := a.x + (s.w * a.y)
+	bi := b.x + (s.w * b.y)
+	if ai < 0 || bi < 0 {
+		return
+	}
+	ac := s.buf[ai]
+	bc := s.buf[bi]
+
+	diff := b - a
+	ac2: Conn_BitSet
+	bc2: Conn_BitSet
+	switch diff.x {
+	case 1:
+		{
+			ac2 = {.Right}
+			bc2 = {.Left}
+		}
+	case -1:
+		{
+			ac2 = {.Left}
+			bc2 = {.Right}
+		}
+	case 0:
+		{
+			switch diff.y {
+			case 1:
+				{
+					ac2 = {.Down}
+					bc2 = {.Up}
+				}
+			case -1:
+				{
+					ac2 = {.Up}
+					bc2 = {.Down}
+				}
+			case:
+				{assert(false)}
+			}
+		}
+	case:
+		{assert(false)}
+	}
+	s.buf[ai] = s.buf[ai] | ac2
+	s.buf[bi] = s.buf[bi] | bc2
+}
+set_conn_destroy :: proc(s: ^SetConn) {
 	delete(s.buf)
 }
 
@@ -263,7 +398,7 @@ Set :: struct($T: typeid) {
 	writes: int,
 	tag:    string,
 }
-set_make :: proc(w, h, size_mult: int, $T: typeid, tag: string = "") -> Set(T) {
+setg_make :: proc(w, h, size_mult: int, $T: typeid, tag: string = "") -> Set(T) {
 	size := w * h * size_mult
 	s := Set(T) {
 		m    = make(map[T]bool, size),
@@ -274,15 +409,17 @@ set_make :: proc(w, h, size_mult: int, $T: typeid, tag: string = "") -> Set(T) {
 	}
 	return s
 }
-set_contains :: proc(s: ^$S/Set($T), item: T) -> bool {
+setg_contains :: proc(s: ^$S/Set($T), item: T) -> bool {
+	tracy.ZoneN("set_contains")
 	s.reads += 1
 	return item in s.m
 }
-set_add :: proc(s: ^$S/Set($T), item: T) {
+setg_add :: proc(s: ^$S/Set($T), item: T) {
+	tracy.ZoneN("set_add")
 	s.writes += 1
 	s.m[item] = true
 }
-set_destroy :: proc(s: ^$S/Set($T)) {
+setg_destroy :: proc(s: ^$S/Set($T)) {
 	when ODIN_DEBUG {
 		b := strings.builder_make();defer strings.builder_destroy(&b)
 		fmt.sbprint(&b, "destroying set ")
@@ -291,29 +428,56 @@ set_destroy :: proc(s: ^$S/Set($T)) {
 		fmt.sbprintln(&b, "  reads:", s.reads)
 		fmt.sbprintln(&b, "  writes:", s.writes)
 		fmt.sbprintln(&b, "  size:", s.size, "actual:", len(s.m))
+		if len(s.m) > s.size {
+			fmt.sbprintln(&b, "--ERROR: actual len > size")
+		}
 		fmt.print(strings.to_string(b))
 	}
-
 	delete(s.m)
+}
+set_2i :: #force_inline proc(s: ^$S/Set($T), p: P) -> int {
+	return p.x * s.w + p.y
+}
+
+set_make :: proc {
+	set2_make,
+	setg_make,
+}
+set_contains :: proc {
+	set2_contains,
+	setg_contains,
+	set_conn_contains,
+}
+set_add :: proc {
+	set2_add,
+	setg_add,
+	set_conn_add,
+}
+set_destroy :: proc {
+	set2_destroy,
+	setg_destroy,
+	set_conn_destroy,
 }
 
 Grid2 :: struct {
 	using g1: Grid,
 	s:        Loc,
-	visited:  Set(P),
-	conn:     Set([4]int),
+	visited:  Set2,
+	conn:     SetConn,
 	q:        Q,
 }
 g2_make :: proc(input: []u8) -> Grid2 {
 	g: Grid2
 	g.g1 = grid_make(input)
 	g.s = grid_find_s(&g.g1)
-	g.visited = set_make(g.w, g.h, 1, P, "g.visited")
-	g.conn = set_make(g.w, g.h, 2, [4]int, "g.conn")
+	g.visited = set_make(g.w, g.h)
+	g.conn = set_conn_make(g.w + 1, g.h + 1)
 	return g
 }
 g2_destroy :: proc(g: ^Grid2) {
-	// fmt.println("destroying Grid2:", g.w, "x", g.h)
+	when ODIN_DEBUG {
+		fmt.println("destroying Grid2:", g.w, "x", g.h)
+	}
 	set_destroy(&g.visited)
 	set_destroy(&g.conn)
 	queue.destroy(&g.q)
@@ -323,19 +487,16 @@ g2_find_s_connections :: proc(g: ^Grid2) -> (DirLoc, DirLoc) {
 	return find_s_connections(&g.g1, g.s)
 }
 g2_mark_conn :: proc(g: ^Grid2, a, b: Loc) {
-	set_add(&g.conn, [4]int{a.x, a.y, b.x, b.y})
-	set_add(&g.conn, [4]int{b.x, b.y, a.x, a.y})
+	set_add(&g.conn, P{a.x, a.y}, P{b.x, b.y})
 }
 g2_is_conn :: proc(g: ^Grid2, a, b: Loc) -> bool {
-	return set_contains(&g.conn, [4]int{a.x, a.y, b.x, b.y})
+	return set_contains(&g.conn, P{a.x, a.y}, P{b.x, b.y})
 }
 g2_mark_visited :: proc(g: ^Grid2, loc: Loc) {
 	set_add(&g.visited, P{loc.x, loc.y})
-	// g.visited[{loc.x, loc.y}] = true
 }
 g2_is_visited :: proc(g: ^Grid2, loc: Loc) -> bool {
 	return set_contains(&g.visited, P{loc.x, loc.y})
-	// return {loc.x, loc.y} in g.visited
 }
 g2_f :: proc(g: ^Grid2, x, y: int) {
 	tracy.ZoneN("g2_f")
@@ -356,7 +517,8 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 	tracy.ZoneN("g2_flood_fill")
 	visited := set_make(g.w + 1, g.h + 1, 4, [4]int, "visited")
 	defer set_destroy(&visited)
-	corners := set_make(g.w + 2, g.h + 2, 1, P, "corners")
+	// corners := set_make(g.w + 1, g.h + 1, 1, int, "corners")
+	corners: Set2 = set_make(g.w + 2, g.h + 2)
 	defer set_destroy(&corners)
 
 	c: [2]int = {0, 0}
@@ -396,7 +558,8 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 			ey = min(y1, y2)
 		}
 		cross_edge: [4]int = {sx, sy, ex, ey}
-		if set_contains(&g.conn, cross_edge) {
+		// cross edge {sx, sy} -> {ex, ey}
+		if set_contains(&g.conn, P{sx, sy}, P{ex, ey}) {
 			continue
 		}
 		set_add(&corners, P{x1, y1})
@@ -404,21 +567,26 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 		g2_f(g, x2, y2)
 	}
 	inside_count := 0
-	for y in 0 ..< g.h {
-		for x in 0 ..< g.w {
-			cn1: P = {x, y}
-			cn2: P = {x + 1, y}
-			cn3: P = {x, y + 1}
-			cn4: P = {x + 1, y + 1}
-			if set_contains(&corners, cn1) &&
-			   set_contains(&corners, cn2) &&
-			   set_contains(&corners, cn3) &&
-			   set_contains(&corners, cn4) {
-				continue
-			} else if set_contains(&g.visited, cn1) {
-				continue
-			} else {
-				inside_count += 1
+	{
+		tracy.ZoneN("count inside")
+		for y in 0 ..< g.h {
+			for x in 0 ..< g.w {
+				cn1: P = {x, y}
+				cn2: P = {x + 1, y}
+				cn3: P = {x, y + 1}
+				cn4: P = {x + 1, y + 1}
+				filled :=
+					set_contains(&corners, cn1) &&
+					set_contains(&corners, cn2) &&
+					set_contains(&corners, cn3) &&
+					set_contains(&corners, cn4)
+				if filled {
+					continue
+				} else if set_contains(&g.visited, cn1) {
+					continue
+				} else {
+					inside_count += 1
+				}
 			}
 		}
 	}
