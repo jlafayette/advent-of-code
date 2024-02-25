@@ -224,7 +224,7 @@ Q :: queue.Queue([4]int)
 // G.visited [2]int (square)
 // G.conn    [4]int (square to square)
 // visited   [4]int (edges, [2]int+[2]int)
-// corners   [2]int (square corner) grid or grid +1?
+// corners   [2]int (square corner) grid +1
 Set2 :: struct {
 	buf: []bool,
 	w:   int,
@@ -304,8 +304,8 @@ set_conn_make :: proc(w: int, h: int) -> SetConn {
 	}
 	return s
 }
+// check if connection exists between positions a and b
 set_conn_contains :: proc(s: ^SetConn, a, b: P) -> bool {
-	// check if conn is exists between positions a and b
 	i := a.x + (s.w * a.y)
 	bi := b.x + (s.w * b.y)
 	if i < 0 || bi < 0 {
@@ -515,9 +515,12 @@ g2_f :: proc(g: ^Grid2, x, y: int) {
 }
 g2_flood_fill :: proc(g: ^Grid2) -> int {
 	tracy.ZoneN("g2_flood_fill")
-	visited := set_make(g.w + 1, g.h + 1, 4, [4]int, "visited")
+
+	// The +2 to width and height is needed because edges need
+	// +1 already, and the extra +1 is because there is no bounds
+	// checking // on the high side currently.
+	visited: SetConn = set_conn_make(g.w + 2, g.h + 2)
 	defer set_destroy(&visited)
-	// corners := set_make(g.w + 1, g.h + 1, 1, int, "corners")
 	corners: Set2 = set_make(g.w + 2, g.h + 2)
 	defer set_destroy(&corners)
 
@@ -529,15 +532,14 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 			break
 		}
 		edge := queue.pop_front(&g.q)
-		if set_contains(&visited, edge) {
-			continue
-		}
 		x1 := edge[0]
 		y1 := edge[1]
 		x2 := edge[2]
 		y2 := edge[3]
-		set_add(&visited, [4]int{x1, y1, x2, y2})
-		set_add(&visited, [4]int{x2, y2, x1, y1})
+		if set_contains(&visited, P{x1, y1}, P{x2, y2}) {
+			continue
+		}
+		set_add(&visited, P{x1, y1}, P{x2, y2})
 
 		// does edge cross a pipe edge?
 		horizontal := y1 == y2
@@ -557,7 +559,6 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 			ex = x1
 			ey = min(y1, y2)
 		}
-		cross_edge: [4]int = {sx, sy, ex, ey}
 		// cross edge {sx, sy} -> {ex, ey}
 		if set_contains(&g.conn, P{sx, sy}, P{ex, ey}) {
 			continue
