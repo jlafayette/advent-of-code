@@ -424,19 +424,21 @@ g2_mark_visited :: proc(g: ^Grid2, loc: Loc) {
 g2_is_visited :: proc(g: ^Grid2, loc: Loc) -> bool {
 	return set_contains(&g.visited, P{loc.x, loc.y})
 }
-g2_f :: proc(g: ^Grid2, x, y: int) {
-	tracy.ZoneN("g2_f")
+g2_add_neighbors :: proc(g: ^Grid2, p: P) {
+	tracy.ZoneN("g2_add_neighbors")
+	x := p.x
+	y := p.y
 	if x <= g.w {
-		queue.push_back(&g.q, E{{x, y}, {x + 1, y}})
+		queue.push_back(&g.q, E{p, {x + 1, y}})
 	}
 	if x > 0 {
-		queue.push_back(&g.q, E{{x, y}, {x - 1, y}})
+		queue.push_back(&g.q, E{p, {x - 1, y}})
 	}
 	if y <= g.h {
-		queue.push_back(&g.q, E{{x, y}, {x, y + 1}})
+		queue.push_back(&g.q, E{p, {x, y + 1}})
 	}
 	if y > 0 {
-		queue.push_back(&g.q, E{{x, y}, {x, y - 1}})
+		queue.push_back(&g.q, E{p, {x, y - 1}})
 	}
 }
 g2_flood_fill :: proc(g: ^Grid2) -> int {
@@ -450,8 +452,8 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 	corners: Set2 = set_make(g.w + 2, g.h + 2)
 	defer set_destroy(&corners)
 
-	c: [2]int = {0, 0}
-	g2_f(g, c.x, c.y)
+	c: P = {0, 0}
+	g2_add_neighbors(g, c)
 	for {
 		tracy.ZoneN("g2_flood_fill--for-loop")
 		if queue.len(g.q) == 0 {
@@ -469,25 +471,23 @@ g2_flood_fill :: proc(g: ^Grid2) -> int {
 
 		// does edge cross a pipe edge?
 		horizontal := y1 == y2
-		s: P
-		e: P
+		cross_edge: E
 		if horizontal {
 			x := min(x1, x2)
-			s = {x, y1 - 1}
-			e = {x, y1}
+			cross_edge = {{x, y1 - 1}, {x, y1}}
 		} else {
 			assert(x1 == x2)
 			y := min(y1, y2)
-			s = {x1 - 1, y}
-			e = {x1, y}
+			cross_edge = {{x1 - 1, y}, {x1, y}}
 		}
-		// cross edge s -> e
-		if set_contains(&g.conn, E{s, e}) {
+		if set_contains(&g.conn, cross_edge) {
+			// It does cross a pipe - do not continue flood fill
 			continue
 		}
-		set_add(&corners, P{x1, y1})
-		set_add(&corners, P{x2, y2})
-		g2_f(g, x2, y2)
+		// Contiue flood fill from far end of the edge
+		set_add(&corners, edge.a)
+		set_add(&corners, edge.b)
+		g2_add_neighbors(g, edge.b)
 	}
 	inside_count := 0
 	{
