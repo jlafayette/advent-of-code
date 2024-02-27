@@ -106,6 +106,7 @@ solve :: proc(input: []u8, expansion_factor: int) -> int {
 	// fmt.println(galaxies)
 
 	calculated := make_slice([]bool, len(galaxies) * len(galaxies))
+	defer delete(calculated)
 	sum: int
 	// pairs: int
 	for g1, i in galaxies {
