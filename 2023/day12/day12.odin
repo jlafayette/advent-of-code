@@ -677,7 +677,11 @@ branch2 :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	// branch n, putting up to 2 new nodes on the q
 
 	n1: Node
+	reserve(&n1.grps, len(n.grps))
+	reserve(&n1.segs, len(n.segs) + 1)
 	n2: Node
+	reserve(&n2.grps, len(n.grps))
+	reserve(&n2.segs, len(n.segs) + 1)
 	done := false
 	prev := Seg{.OP, 1}
 	carry_br := 0
@@ -1125,12 +1129,12 @@ _main :: proc() {
 	// 	fmt.println(r)
 	// 	assert(r == 21)
 	// }
-	{
-		t := transmute([]u8)string(TEST_INPUT)
-		r := part1_2(t)
-		fmt.println(r)
-		assert(r == 21)
-	}
+	// {
+	// 	t := transmute([]u8)string(TEST_INPUT)
+	// 	r := part1_2(t)
+	// 	fmt.println(r)
+	// 	assert(r == 21)
+	// }
 
 	{
 		// line := "##????????#?#?????? 4,1,8,2"
@@ -1152,14 +1156,13 @@ _main :: proc() {
 
 		// line := ".#?.?.?#?#..??##.?? 1,1,3,4,1" // 2
 
-		// line := ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
-		line := "?###??????????###??????????###??????????###??????????###???????? 3,2,1,3,2,1,3,2,1,3,2,1,3,2,1"
-
+		line := ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
+		// line := "?###??????????###??????????###??????????###??????????###???????? 3,2,1,3,2,1,3,2,1,3,2,1,3,2,1"
 
 		// line := "?#?#?#?#?#?#?#? 1,3,1,6" // 1
 
 		record := parse(transmute([]u8)string(line));defer record_destroy(&record)
-		r := sliding_fit_solve2(record)
+		r := sliding_fit_solve(record)
 		fmt.println(r)
 	}
 
@@ -1175,12 +1178,12 @@ _main :: proc() {
 	// }
 	part1_tick := time.tick_now()
 	part1_duration := time.tick_diff(start_tick, part1_tick)
-	{
-		t := transmute([]u8)string(TEST_INPUT)
-		r := part2(t)
-		fmt.println(r)
-		assert(r == 525152)
-	}
+	// {
+	// 	t := transmute([]u8)string(TEST_INPUT)
+	// 	r := part2(t)
+	// 	fmt.println(r)
+	// 	assert(r == 525152)
+	// }
 	// {
 	// 	r := part2(input)
 	// 	fmt.println(r)
