@@ -316,10 +316,9 @@ node_to_string :: proc(n: ^Node) -> string {
 }
 Q :: queue.Queue(Node)
 Edit :: struct {
-	enable:        bool,
-	seg:           Seg,
-	index:         int,
-	merge_forward: bool,
+	enable: bool,
+	seg:    Seg,
+	index:  int,
 }
 branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	// branch n, putting up to 2 new nodes on the q
@@ -333,11 +332,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 
 	br_acc := 0 // store BR count from last seg
 	optional_br_acc := 0 // discarded but available
-	final_seg_i := -1
-	final_seg_remaining := 0
-	other_i := -1
 	edit1: Edit
-	edit2: Edit
 	otherEdit: Edit
 	seg_loop: for seg, seg_i in n.segs {
 		last := seg_i + 1 == len(n.segs)
@@ -357,18 +352,12 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 						next_seg = n.segs[seg_i + 1]
 					}
 
-					optional_br_used := grp - (seg.len + br_acc)
-					// TODO: shift edits
-
 					edit1.enable = true
 					edit1.seg = next_seg
 					edit1.index = seg_i + 1
-					// final_seg_remaining = next_seg.len
 					if next_seg.state == .UN {
 						edit1.seg.len -= 1
-						// final_seg_remaining -= 1
 					}
-					// final_seg_i = seg_i + 1
 					fmt.println("    x .BR seg.len == grp")
 					break seg_loop
 				} else {
@@ -407,8 +396,9 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 						optional_br_acc = seg.len - 1
 					} else {
 						br_acc += seg.len
-						if other_i == -1 {
-							other_i = seg_i
+						if !otherEdit.enable {
+							otherEdit.enable = true
+							otherEdit.index = seg_i
 						}
 					}
 					continue seg_loop
@@ -430,12 +420,10 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 
 				// we can slot it!
 				// how much of this UN seg do we need?
-				// final_seg_i = seg_i
-				if other_i == -1 {
-					other_i = seg_i
+				if !otherEdit.enable {
+					otherEdit.enable = true
+					otherEdit.index = seg_i
 				}
-				// final_seg_remaining = seg.len - (grp - br_acc)
-				// final_seg_remaining -= 1 // we need a buffer .
 				edit1.enable = true
 				edit1.seg = seg
 				edit1.index = seg_i
@@ -459,13 +447,8 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 						}
 						edit1.seg = next_next_seg
 						edit1.index = seg_i + 2
-
-						// final_seg_i += 2
-						// final_seg_remaining = 9999 // high number means all of it remains
 					} else {
 						// one of next seg will be turned into .
-						// final_seg_i += 1
-						// final_seg_remaining = next_seg.len - 1
 						edit1.seg = next_seg
 						edit1.seg.len = next_seg.len - 1
 						edit1.index = seg_i + 1
@@ -483,8 +466,11 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 			}
 		}
 	}
-	fmt.println("  grp:", grp, "final:", edit1.index, edit1.seg.len, "other:", other_i)
+	fmt.println("  grp:", grp, "final:", edit1.index, edit1.seg.len, "other:", otherEdit.index)
 	fmt.println("  edit1:", edit1)
+	if otherEdit.enable {
+		fmt.println("  otherEdit:", otherEdit)
+	}
 	if edit1.enable {
 		// if slotted, then add that to q
 		n1: Node
@@ -505,17 +491,17 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 
 	// then add a version to the q where
 	// the opposite is true, (don't slot)
-	if other_i > -1 {
+	if otherEdit.enable {
 		n2: Node
 
 		discarded_count := 0
 		for seg, i in n.segs {
-			if i < other_i && seg.state == .UN {
+			if i < otherEdit.index && seg.state == .UN {
 				// leave out discarded UN segments
 				discarded_count += 1
 				continue
 			}
-			if i == other_i {
+			if i == otherEdit.index {
 				assert(seg.state == .UN)
 				append_op := true
 				if i > 0 {
