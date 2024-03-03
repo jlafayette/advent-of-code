@@ -11,6 +11,14 @@ import "core:strconv"
 import "core:strings"
 import "core:time"
 
+Level :: enum {
+	Debug,
+	Info,
+	Warning,
+	Error,
+}
+level: Level = .Warning
+
 main :: proc() {
 	// freeing memory is not really needed for a cli program like this,
 	// but it's helpful to see where allocations are happening.
@@ -36,6 +44,13 @@ main :: proc() {
 		}
 	}
 	args := os.args[1:]
+
+	if slice.contains(args, "-v") {
+		level = .Info
+	} else if slice.contains(args, "-vv") {
+		level = .Debug
+	}
+
 	if slice.contains(args, "-t") || slice.contains(args, "-test") {
 		test()
 	} else if slice.contains(args, "-c") || slice.contains(args, "-compare") {
@@ -43,6 +58,46 @@ main :: proc() {
 	} else {
 		_main()
 	}
+}
+
+log_debug :: proc(args: ..any, sep := " ", flush := true) {
+	switch level {
+	case .Debug:
+		{
+			fmt.println(..args, sep = sep, flush = flush)
+		}
+	case .Info:
+	case .Warning:
+	case .Error:
+	}
+}
+log_info :: proc(args: ..any, sep := " ", flush := true) {
+	switch level {
+	case .Debug:
+		fallthrough
+	case .Info:
+		{
+			fmt.println(..args, sep = sep, flush = flush)
+		}
+	case .Warning:
+	case .Error:
+	}
+}
+log_warning :: proc(args: ..any, sep := " ", flush := true) {
+	switch level {
+	case .Debug:
+		fallthrough
+	case .Info:
+		fallthrough
+	case .Warning:
+		{
+			fmt.println(..args, sep = sep, flush = flush)
+		}
+	case .Error:
+	}
+}
+log_error :: proc(args: ..any, sep := " ", flush := true) {
+	fmt.println(..args, sep = sep, flush = flush)
 }
 
 TEST_INPUT :: `???.### 1,1,3
@@ -61,6 +116,10 @@ State :: enum {
 Record :: struct {
 	springs: [dynamic]State,
 	grps:    [dynamic]int,
+}
+record_destroy :: proc(r: ^Record) {
+	delete(r.springs)
+	delete(r.grps)
 }
 springs_fmt :: proc(springs: []State) -> string {
 	b := strings.builder_make(len(springs))
@@ -105,6 +164,53 @@ parse :: proc(line: []u8) -> Record {
 		}
 	}
 	return r
+}
+parse2 :: proc(line: []u8) -> Record {
+	r: Record
+	defer record_destroy(&r)
+	// spring states
+	last_i: int // to resume place to search in line for grps
+	for char, i in line {
+		current: State
+		done := false
+		switch char {
+		case '.':
+			{current = .OP}
+		case '#':
+			{current = .BR}
+		case '?':
+			{current = .UN}
+		case:
+			{done = true}
+		}
+		if done {last_i = i;break}
+		append(&r.springs, current)
+	}
+	// grps
+	grp_data: []u8 = line[last_i + 1:]
+	for num in bytes.split_iterator(&grp_data, {','}) {
+		v, ok := strconv.parse_int(string(num), 10)
+		if ok {
+			append(&r.grps, v)
+		}
+	}
+
+	// expanded
+	r2: Record
+	for i in 0 ..< 5 {
+		for state in r.springs {
+			append(&r2.springs, state)
+		}
+		if i != 4 {
+			append(&r2.springs, State.UN)
+		}
+
+		for grp in r.grps {
+			append(&r2.grps, grp)
+		}
+	}
+
+	return r2
 }
 
 record_matches_grps :: proc(springs: []State, grps: []int) -> bool {
@@ -224,7 +330,7 @@ solve :: proc(record: Record) -> int {
 			arrs += 1
 		}
 	}
-	fmt.println("found", arrs, "valid arrangements")
+	// fmt.println("found", arrs, "valid arrangements")
 	return arrs
 }
 
@@ -233,8 +339,9 @@ part1 :: proc(input: []u8) -> int {
 	input_ := input
 	// i := 0
 	for line in bytes.split_iterator(&input_, {'\n'}) {
-		fmt.println("\n", string(line))
+		// fmt.println("\n", string(line))
 		r := parse(line)
+		defer record_destroy(&r)
 		// fmt.println(r)
 		total += solve(r)
 		// if i >= 1 {break}
@@ -247,8 +354,9 @@ part1_2 :: proc(input: []u8) -> int {
 	total := 0
 	input_ := input
 	for line in bytes.split_iterator(&input_, {'\n'}) {
-		// fmt.println("\n", string(line))
+		log_info("\n", string(line))
 		r := parse(line)
+		defer record_destroy(&r)
 		total += sliding_fit_solve(r)
 	}
 	return total
@@ -331,7 +439,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	// branch n, putting up to 2 new nodes on the q
 	// if node is invalid (no chance of working), return
 	// without putting anything back on the q
-	fmt.println(node_to_string(n))
+	log_info(node_to_string(n))
 	ok = true
 
 	if len(n.grps) == 0 {return}
@@ -346,7 +454,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 		case .BR:
 			{
 				if seg.len + br_acc > grp {
-					fmt.println("    x .BR set.len + br_acc > grp")
+					log_debug("    x .BR set.len + br_acc > grp")
 					return
 				}
 				if seg.len + br_acc == grp || seg.len + br_acc + otherEdit.optional_br_acc >= grp {
@@ -375,12 +483,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 							}
 						}
 					}
-
-					// optional_br_acc_used := grp - (seg.len + br_acc)
-					// if !otherEdit.enable && otherEdit.optional_br && optional_br_acc_used > 0 {
-					// 	otherEdit.enable = true
-					// }
-					fmt.println("    x .BR seg.len == grp")
+					log_debug("    x .BR seg.len == grp")
 					break seg_loop
 				} else {
 					br_acc += seg.len
@@ -412,7 +515,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 					}
 
 					if discard {
-						fmt.println("   discard:", seg, seg_i)
+						log_debug("   discard:", seg, seg_i)
 						// For cases like .??## 3 where we want to carry over 1 from
 						// the UN grp even though as a whole it has been discarded
 						if !otherEdit.enable {
@@ -435,7 +538,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 					if next_seg.state == .BR {
 						if br_acc > 0 {
 							// Can't make this work
-							fmt.println("    x .UN (seg.len+br_acc) == grp")
+							log_debug("    x .UN (seg.len+br_acc) == grp")
 							return
 						} else {
 							if !otherEdit.enable {
@@ -461,10 +564,6 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 				edit1.seg.len -= 1 // we need a buffer .
 				if next_seg.state == .BR {
 					break seg_loop
-					// fmt.println("ERROR: next_seg.state == .BR")
-					// fmt.println(node_to_string(n))
-					// // assert(next_seg.state != .BR)
-					// return false
 				}
 
 				// Do we effect the next seg? (resolve ?->. for example)
@@ -489,17 +588,17 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 		case .OP:
 			{
 				if br_acc > 0 {
-					fmt.println("   x .OP (br_acc > 0)")
+					log_debug("   x .OP (br_acc > 0)")
 					return
 				}
 				// br_acc = 0
 			}
 		}
 	}
-	fmt.println("  grp:", grp, "final:", edit1.index, edit1.seg.len, "other:", otherEdit.index)
-	fmt.println("  edit1:", edit1)
+	log_debug("  grp:", grp, "final:", edit1.index, edit1.seg.len, "other:", otherEdit.index)
+	log_debug("  edit1:", edit1)
 	if otherEdit.enable {
-		fmt.println("  otherEdit:", otherEdit)
+		log_debug("  otherEdit:", otherEdit)
 	}
 	if edit1.enable {
 		// if slotted, then add that to q
@@ -515,12 +614,13 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 				append(&n1.grps, grp)
 			}
 		}
-		fmt.println("  q<-", node_to_string(&n1))
+		log_info("  q<-", node_to_string(&n1))
 		queue.push_back(q, n1)
 	}
 
 	// then add a version to the q where
 	// the opposite is true, (don't slot)
+	otherEdit.enable = false
 	if otherEdit.enable {
 		n2: Node
 
@@ -556,10 +656,64 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 		for grp in n.grps {
 			append(&n2.grps, grp)
 		}
-		fmt.println("  q<-", node_to_string(&n2))
+		log_info("  q<-", node_to_string(&n2))
 		queue.push_back(q, n2)
 	}
 	return
+}
+add_seg :: proc(segs: ^[dynamic]Seg, seg: Seg) {
+	if seg.len == 0 {
+		return
+	}
+	if len(segs) > 0 {
+		if segs[len(segs) - 1].state == seg.state {
+			segs[len(segs) - 1].len += seg.len
+			return
+		}
+	}
+	append(segs, seg)
+}
+branch2 :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
+	// branch n, putting up to 2 new nodes on the q
+
+	n1: Node
+	n2: Node
+	done := false
+	prev := Seg{.OP, 1}
+	carry_br := 0
+	for seg, i in n.segs {
+		defer prev = seg
+		if !done && seg.state == .UN {
+			done = true
+			// n1 flip 1 UN -> BR
+			{
+				add_seg(&n1.segs, Seg{.BR, 1})
+				add_seg(&n1.segs, Seg{seg.state, seg.len - 1})
+			}
+			// n2 flip 1 UN -> OP
+			{
+				add_seg(&n2.segs, Seg{.OP, 1})
+				add_seg(&n2.segs, Seg{seg.state, seg.len - 1})
+			}
+		} else {
+			add_seg(&n1.segs, seg)
+			add_seg(&n2.segs, seg)
+		}
+	}
+	if done {
+		for grp in n.grps {
+			append(&n1.grps, grp)
+			append(&n2.grps, grp)
+		}
+
+		log_info("  q<-", node_to_string(&n1))
+		queue.push_back(q, n1)
+		log_info("  q<-", node_to_string(&n2))
+		queue.push_back(q, n2)
+		return true
+	} else {
+		return false
+	}
 }
 node_fully_resolved :: proc(n: ^Node) -> bool {
 	for seg in n.segs {
@@ -684,6 +838,111 @@ node_resolved :: proc(n: ^Node) -> (int, bool) {
 		return 0, true
 	}
 }
+node_resolved2 :: proc(n: ^Node) -> (int, bool) {
+	br_count := 0
+	un_count := 0
+	grp_space := 0
+	first_non_op := false
+	first_non_op_seg: Seg
+
+	br_seg_count := 0
+
+	first_un := false
+	grp_i := 0
+
+	for seg, seg_i in n.segs {
+		switch seg.state {
+		case .BR:
+			{
+				if !first_un {
+					if grp_i >= len(n.grps) {
+						log_debug(" r x grp_i >= len(grps)")
+						return 0, true
+					}
+					next_seg := Seg{.OP, 1}
+					if seg_i < len(n.segs) - 1 {
+						next_seg = n.segs[seg_i + 1]
+					}
+					if seg.len != n.grps[grp_i] && next_seg.state != .UN {
+						log_debug(" r x seg.len != grp && next != UN")
+						log_debug("  ", n.grps[grp_i], seg, next_seg)
+						return 0, true
+					}
+					grp_i += 1
+				}
+				if !first_non_op {
+					first_non_op_seg = seg
+				}
+				first_non_op = true
+				br_count += seg.len
+				grp_space += seg.len
+				br_seg_count += 1
+			}
+		case .UN:
+			{
+				defer first_un = true
+				if !first_non_op {
+					first_non_op_seg = seg
+				}
+				first_non_op = true
+				un_count += seg.len
+				grp_space += seg.len
+			}
+		case .OP:
+			{
+				if first_non_op {
+					grp_space += 1
+				}
+			}
+		}
+	}
+
+	// Checks that work with either fully resolved or not
+	if first_non_op && first_non_op_seg.state == .BR {
+		if first_non_op_seg.len > n.grps[0] {
+			return 0, true
+		}
+	}
+
+	// not fully resolved
+	if un_count > 0 {
+		// Some checks for non resolved nodes if it can never work
+
+		// //  ...???#?#?????? 1,8,2 --- requires 13, only have 12
+		// grp_space_required := 0
+		// for grp in n.grps {
+		// 	grp_space_required += grp
+		// }
+		// grp_space_required += len(n.grps) - 1 // . between grps
+		// if grp_space_required > grp_space {
+		// 	return 0, true
+		// }
+
+		// Needs more branching
+		return 0, false
+	}
+
+
+	// node is fully resolved since UN count is 0
+	grp_i = 0
+	for seg in n.segs {
+		assert(seg.state != .UN)
+		if seg.state == .BR {
+			if grp_i >= len(n.grps) {
+				return 0, true
+			}
+			if seg.len != n.grps[grp_i] {
+				return 0, true
+			}
+			grp_i += 1
+		}
+	}
+	if grp_i == len(n.grps) {
+		return 1, true
+	} else {
+		return 0, true
+	}
+}
 node_destroy :: proc(n: ^Node) {
 	delete(n.grps)
 	delete(n.segs)
@@ -691,95 +950,131 @@ node_destroy :: proc(n: ^Node) {
 
 sliding_fit_solve :: proc(record: Record) -> int {
 	possible_arrangments := 0
-	q: Q
+	q: Q;defer queue.destroy(&q)
 	node: Node = node_make(record)
+	node_str := node_to_string(&node)
 	queue.push_back(&q, node)
 	loop_count := 0
 	for queue.len(q) > 0 {
 		loop_count += 1
 		n := queue.pop_back(&q)
-		fmt.println("pop:", node_to_string(&n))
+		log_info("pop:", node_to_string(&n))
+		// log_debug("    ", n)
 		defer node_destroy(&n)
-		arrs, resolved := node_resolved(&n)
-		if resolved {
-			if arrs > 0 {
-				fmt.println("-> +", arrs, sep = "")
-				possible_arrangments += arrs
-			}
-			continue
-		}
-		// if node_resolved(&n) {
+		// arrs, resolved := node_resolved(&n)
+		// if resolved {
+		// 	if arrs > 0 {
+		// 		log_info("-> +", arrs, sep = "")
+		// 		possible_arrangments += arrs
+		// 	}
+		// 	continue
+		// }
+		// if node_fully_resolved(&n) {
 		// 	if node_valid(&n) {
-		// 		fmt.println("-> +1")
+		// 		log_info("-> +1")
 		// 		possible_arrangments += 1
 		// 	}
 		// 	continue
 		// }
-		ok := branch(&q, &n)
+		arrs, resolved := node_resolved2(&n)
+		if resolved {
+			if arrs > 0 {
+				log_info("-> +", arrs, sep = "")
+				possible_arrangments += arrs
+			}
+			continue
+		}
+		ok := branch2(&q, &n)
 		if !ok {
 			node := node_make(record)
-			fmt.println("ERROR: branch failed\n ", node_to_string(&node))
+			log_error("ERROR: branch failed\n ", node_to_string(&node))
 		}
 	}
-	fmt.println("loops:", loop_count)
+	// log_info("loops:", loop_count)
+	log_warning(loop_count, "--", node_str)
 	return possible_arrangments
 }
 
 
 part2 :: proc(input: []u8) -> int {
-	return 0
+	total := 0
+	input_ := input
+	for line in bytes.split_iterator(&input_, {'\n'}) {
+		log_info("\n", string(line))
+		r := parse2(line)
+		defer record_destroy(&r)
+		total += sliding_fit_solve(r)
+	}
+	return total
 }
 
 test_compare :: proc() {
 	input, ok := os.read_entire_file_from_filename("input")
 	defer delete(input)
 	assert(ok)
+	total := 0
+	correct := 0
+	err := false
 	for line in bytes.split_iterator(&input, {'\n'}) {
-		// fmt.println("\n", string(line))
-		record := parse(line)
-		a1 := solve(record)
-		a2 := sliding_fit_solve(record)
-		if a1 != a2 {
-			fmt.println("got different answers for line:", string(line), "expected", a1, "got", a2)
-			return
+		total += 1
+		log_info("\n", string(line))
+		if !err {
+			record := parse(line)
+			defer record_destroy(&record)
+			a1 := solve(record)
+			a2 := sliding_fit_solve(record)
+			if a1 != a2 {
+				log_error(
+					"got different answers for line:",
+					string(line),
+					"expected",
+					a1,
+					"got",
+					a2,
+				)
+				// err = true
+			} else {
+				correct += 1
+			}
 		}
 	}
+	log_warning("Got", correct, "out of", total, "correct")
 }
 
 test :: proc() {
 	{
 		line := "???.### 1,1,3"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 1)
 	}
 	{
 		line := ".??..??...?##. 1,1,3"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 4)
 	}
 	{
 		line := "?#?#?#?#?#?#?#? 1,3,1,6"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 1)
 	}
 	{
 		line := "????.#...#... 4,1,1"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 1)
 	}
 	{
 		line := "????.######..#####. 1,6,5"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 4)
 	}
 	{
 		line := "?###???????? 3,2,1"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 10)
 	}
@@ -787,7 +1082,7 @@ test :: proc() {
 	{
 		line := "##????????#?#?????? 4,1,8,2"
 		// line := "???#?#?????? 8,2"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 4)
 	}
@@ -796,16 +1091,23 @@ test :: proc() {
 		// line := "????? 2"
 		// line := "??.??????##. 3,3"
 		// line := "??##. 3"
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 8)
 	}
 	{
 		line := ".??#??.??# 3,2" // 3
-		record := parse(transmute([]u8)line)
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
 		r := sliding_fit_solve(record)
 		assert(r == 3)
 	}
+	{
+		line := "????????##?. 2,2,3" // 9
+		record := parse(transmute([]u8)line);defer record_destroy(&record)
+		r := sliding_fit_solve(record)
+		assert(r == 9)
+	}
+
 }
 
 _main :: proc() {
@@ -823,12 +1125,12 @@ _main :: proc() {
 	// 	fmt.println(r)
 	// 	assert(r == 21)
 	// }
-	// {
-	// 	t := transmute([]u8)string(TEST_INPUT)
-	// 	r := part1_2(t)
-	// 	fmt.println(r)
-	// 	assert(r == 21)
-	// }
+	{
+		t := transmute([]u8)string(TEST_INPUT)
+		r := part1_2(t)
+		fmt.println(r)
+		assert(r == 21)
+	}
 
 	{
 		// line := "##????????#?#?????? 4,1,8,2"
@@ -843,10 +1145,21 @@ _main :: proc() {
 		// line := "??# 2"
 
 		// line := "???????#?????#..?? 5,2" // 4
-		line := "?????#?????#..?? 5,2"
+		// line := "?????#?????#..?? 5,2"
 
-		record := parse(transmute([]u8)string(line))
-		r := sliding_fit_solve(record)
+		// not solved
+		// line := "????????##?. 2,2,3" // 9
+
+		// line := ".#?.?.?#?#..??##.?? 1,1,3,4,1" // 2
+
+		// line := ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
+		line := "?###??????????###??????????###??????????###??????????###???????? 3,2,1,3,2,1,3,2,1,3,2,1,3,2,1"
+
+
+		// line := "?#?#?#?#?#?#?#? 1,3,1,6" // 1
+
+		record := parse(transmute([]u8)string(line));defer record_destroy(&record)
+		r := sliding_fit_solve2(record)
 		fmt.println(r)
 	}
 
@@ -862,12 +1175,12 @@ _main :: proc() {
 	// }
 	part1_tick := time.tick_now()
 	part1_duration := time.tick_diff(start_tick, part1_tick)
-	// {
-	// 	t := transmute([]u8)string(TEST_INPUT)
-	// 	r := part2(t)
-	// 	fmt.println(r)
-	// 	assert(r == )
-	// }
+	{
+		t := transmute([]u8)string(TEST_INPUT)
+		r := part2(t)
+		fmt.println(r)
+		assert(r == 525152)
+	}
 	// {
 	// 	r := part2(input)
 	// 	fmt.println(r)
