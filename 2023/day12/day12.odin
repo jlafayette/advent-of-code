@@ -320,6 +320,13 @@ Edit :: struct {
 	seg:    Seg,
 	index:  int,
 }
+OtherEdit :: struct {
+	enable:           bool,
+	index:            int,
+	optional_br:      bool,
+	optional_br_used: int,
+	optional_br_acc:  int,
+}
 branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	// branch n, putting up to 2 new nodes on the q
 	// if node is invalid (no chance of working), return
@@ -331,9 +338,8 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	grp := n.grps[0]
 
 	br_acc := 0 // store BR count from last seg
-	optional_br_acc := 0 // discarded but available
 	edit1: Edit
-	otherEdit: Edit
+	otherEdit: OtherEdit
 	seg_loop: for seg, seg_i in n.segs {
 		last := seg_i + 1 == len(n.segs)
 		switch seg.state {
@@ -343,7 +349,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 					fmt.println("    x .BR set.len + br_acc > grp")
 					return
 				}
-				if seg.len + br_acc == grp || seg.len + br_acc + optional_br_acc >= grp {
+				if seg.len + br_acc == grp || seg.len + br_acc + otherEdit.optional_br_acc >= grp {
 					next_seg: Seg = {
 						state = .OP,
 						len   = 1,
@@ -358,6 +364,22 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 					if next_seg.state == .UN {
 						edit1.seg.len -= 1
 					}
+
+					if otherEdit.optional_br_acc > 0 {
+						optional_br_acc_used := grp - (seg.len + br_acc)
+						if optional_br_acc_used > 0 {
+							otherEdit.optional_br_used = optional_br_acc_used
+							// is it extendable beyond this BR segment?
+							if next_seg.state == .UN {
+								otherEdit.enable = true
+							}
+						}
+					}
+
+					// optional_br_acc_used := grp - (seg.len + br_acc)
+					// if !otherEdit.enable && otherEdit.optional_br && optional_br_acc_used > 0 {
+					// 	otherEdit.enable = true
+					// }
 					fmt.println("    x .BR seg.len == grp")
 					break seg_loop
 				} else {
@@ -393,7 +415,11 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 						fmt.println("   discard:", seg, seg_i)
 						// For cases like .??## 3 where we want to carry over 1 from
 						// the UN grp even though as a whole it has been discarded
-						optional_br_acc = seg.len - 1
+						if !otherEdit.enable {
+							otherEdit.index = seg_i
+							otherEdit.optional_br = true
+							otherEdit.optional_br_acc = seg.len - 1
+						}
 					} else {
 						br_acc += seg.len
 						if !otherEdit.enable {
@@ -412,7 +438,11 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 							fmt.println("    x .UN (seg.len+br_acc) == grp")
 							return
 						} else {
-							optional_br_acc = seg.len
+							if !otherEdit.enable {
+								otherEdit.index = seg_i
+								otherEdit.optional_br = true
+								otherEdit.optional_br_acc = seg.len
+							}
 							continue seg_loop
 						}
 					}
@@ -513,7 +543,10 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 				if append_op {
 					append(&n2.segs, Seg{.OP, 1})
 				}
-				if seg.len > 1 {
+				used := otherEdit.optional_br_used
+				if used > 1 {
+					append(&n2.segs, Seg{seg.state, used - 1})
+				} else if seg.len > 1 {
 					append(&n2.segs, Seg{seg.state, seg.len - 1})
 				}
 			} else {
@@ -558,6 +591,8 @@ node_resolved :: proc(n: ^Node) -> (int, bool) {
 	grp_space := 0
 	first_non_op := false
 
+	br_seg_count := 0
+
 	for seg in n.segs {
 		switch seg.state {
 		case .BR:
@@ -565,6 +600,7 @@ node_resolved :: proc(n: ^Node) -> (int, bool) {
 				first_non_op = true
 				br_count += seg.len
 				grp_space += seg.len
+				br_seg_count += 1
 			}
 		case .UN:
 			{
@@ -581,14 +617,27 @@ node_resolved :: proc(n: ^Node) -> (int, bool) {
 		}
 	}
 	one_grp := len(n.grps) == 1
-	if br_count == 0 && one_grp && n.grps[0] == 1 && un_count > 0 {
-		return un_count, true
-	}
+	if one_grp {
+		grp := n.grps[0]
 
-	// ?? 2 --- not sure how common this is and if it's worth it
-	if one_grp && len(n.segs) == 1 && n.segs[0].state == .UN {
-		if n.segs[0].len == n.grps[0] {
-			return 1, true
+		if br_count == 0 && grp == 1 && un_count > 0 {
+			return un_count, true
+		}
+
+		// ?? 2 --- not sure how common this is and if it's worth it
+		if len(n.segs) == 1 && n.segs[0].state == .UN {
+			if n.segs[0].len == n.grps[0] {
+				return 1, true
+			}
+		}
+
+		// ?#?????#..?? 2
+		if br_seg_count > len(n.grps) {
+			// have to be separated by at least one
+			// #?# 2 --- won't work
+			if (br_count + (br_seg_count - 1)) > grp {
+				return 0, true
+			}
 		}
 	}
 
@@ -751,6 +800,12 @@ test :: proc() {
 		r := sliding_fit_solve(record)
 		assert(r == 8)
 	}
+	{
+		line := ".??#??.??# 3,2" // 3
+		record := parse(transmute([]u8)line)
+		r := sliding_fit_solve(record)
+		assert(r == 3)
+	}
 }
 
 _main :: proc() {
@@ -779,13 +834,17 @@ _main :: proc() {
 		// line := "##????????#?#?????? 4,1,8,2"
 		// line := "???#?#?????? 8,2"
 
-		// line := "?????.??????##. 2,3,3"
+		// line := "?????.??????##. 2,3,3" // 8
 		// line := "????? 2"
 		// line := "??.??????##. 3,3"
 		// line := "??##. 3"
 
 		// line := ".??#??.??# 3,2" // 3
-		line := "??# 2"
+		// line := "??# 2"
+
+		// line := "???????#?????#..?? 5,2" // 4
+		line := "?????#?????#..?? 5,2"
+
 		record := parse(transmute([]u8)string(line))
 		r := sliding_fit_solve(record)
 		fmt.println(r)
