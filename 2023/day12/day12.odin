@@ -315,6 +315,12 @@ node_to_string :: proc(n: ^Node) -> string {
 	return strings.to_string(b)
 }
 Q :: queue.Queue(Node)
+Edit :: struct {
+	enable:        bool,
+	seg:           Seg,
+	index:         int,
+	merge_forward: bool,
+}
 branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	// branch n, putting up to 2 new nodes on the q
 	// if node is invalid (no chance of working), return
@@ -330,7 +336,11 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	final_seg_i := -1
 	final_seg_remaining := 0
 	other_i := -1
+	edit1: Edit
+	edit2: Edit
+	otherEdit: Edit
 	seg_loop: for seg, seg_i in n.segs {
+		last := seg_i + 1 == len(n.segs)
 		switch seg.state {
 		case .BR:
 			{
@@ -343,14 +353,22 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 						state = .OP,
 						len   = 1,
 					}
-					if seg_i + 1 < len(n.segs) {
+					if !last {
 						next_seg = n.segs[seg_i + 1]
 					}
-					final_seg_remaining = next_seg.len
+
+					optional_br_used := grp - (seg.len + br_acc)
+					// TODO: shift edits
+
+					edit1.enable = true
+					edit1.seg = next_seg
+					edit1.index = seg_i + 1
+					// final_seg_remaining = next_seg.len
 					if next_seg.state == .UN {
-						final_seg_remaining -= 1
+						edit1.seg.len -= 1
+						// final_seg_remaining -= 1
 					}
-					final_seg_i = seg_i + 1
+					// final_seg_i = seg_i + 1
 					fmt.println("    x .BR seg.len == grp")
 					break seg_loop
 				} else {
@@ -364,7 +382,6 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 					state = .OP,
 					len   = 1,
 				}
-				last := seg_i + 1 == len(n.segs)
 				if !last {
 					next_seg = n.segs[seg_i + 1]
 				}
@@ -405,6 +422,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 							fmt.println("    x .UN (seg.len+br_acc) == grp")
 							return
 						} else {
+							optional_br_acc = seg.len
 							continue seg_loop
 						}
 					}
@@ -412,12 +430,17 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 
 				// we can slot it!
 				// how much of this UN seg do we need?
-				final_seg_i = seg_i
+				// final_seg_i = seg_i
 				if other_i == -1 {
 					other_i = seg_i
 				}
-				final_seg_remaining = seg.len - (grp - br_acc)
-				final_seg_remaining -= 1 // we need a buffer .
+				// final_seg_remaining = seg.len - (grp - br_acc)
+				// final_seg_remaining -= 1 // we need a buffer .
+				edit1.enable = true
+				edit1.seg = seg
+				edit1.index = seg_i
+				edit1.seg.len -= (grp - br_acc)
+				edit1.seg.len -= 1 // we need a buffer .
 				if next_seg.state == .BR {
 					break seg_loop
 					// fmt.println("ERROR: next_seg.state == .BR")
@@ -427,15 +450,25 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 				}
 
 				// Do we effect the next seg? (resolve ?->. for example)
-				if final_seg_remaining < 0 && next_seg.state == .UN {
+				if edit1.seg.len < 0 && next_seg.state == .UN {
 					if next_seg.len == 1 {
 						// next seg is turned into ., skip forward to next->next
-						final_seg_i += 2
-						final_seg_remaining = 9999 // high number means all of it remains
+						next_next_seg := Seg{.OP, 1}
+						if seg_i + 2 < len(n.segs) {
+							next_next_seg = n.segs[seg_i + 2]
+						}
+						edit1.seg = next_next_seg
+						edit1.index = seg_i + 2
+
+						// final_seg_i += 2
+						// final_seg_remaining = 9999 // high number means all of it remains
 					} else {
 						// one of next seg will be turned into .
-						final_seg_i += 1
-						final_seg_remaining = next_seg.len - 1
+						// final_seg_i += 1
+						// final_seg_remaining = next_seg.len - 1
+						edit1.seg = next_seg
+						edit1.seg.len = next_seg.len - 1
+						edit1.index = seg_i + 1
 					}
 				}
 				break seg_loop
@@ -450,31 +483,25 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 			}
 		}
 	}
-	fmt.println("  grp:", grp, "final:", final_seg_i, final_seg_remaining, "other:", other_i)
-	if final_seg_i < 0 {
-		return
+	fmt.println("  grp:", grp, "final:", edit1.index, edit1.seg.len, "other:", other_i)
+	fmt.println("  edit1:", edit1)
+	if edit1.enable {
+		// if slotted, then add that to q
+		n1: Node
+		if edit1.index < len(n.segs) {
+			if edit1.seg.len > 0 {
+				append(&n1.segs, edit1.seg)
+			}
+			for seg, i in n.segs[edit1.index + 1:] {
+				append(&n1.segs, seg)
+			}
+			for grp in n.grps[1:] {
+				append(&n1.grps, grp)
+			}
+		}
+		fmt.println("  q<-", node_to_string(&n1))
+		queue.push_back(q, n1)
 	}
-	if final_seg_i >= len(n.segs) {
-		return
-	}
-
-	// if slotted, then add that to q
-	n1: Node
-	if final_seg_remaining > 0 {
-		// TODO: fix index error
-		final_seg := n.segs[final_seg_i]
-		seg_len := min(final_seg.len, final_seg_remaining)
-		seg: Seg = {final_seg.state, seg_len}
-		append(&n1.segs, seg)
-	}
-	for seg, i in n.segs[final_seg_i + 1:] {
-		append(&n1.segs, seg)
-	}
-	for grp in n.grps[1:] {
-		append(&n1.grps, grp)
-	}
-	fmt.println("  q<-", node_to_string(&n1))
-	queue.push_back(q, n1)
 
 	// then add a version to the q where
 	// the opposite is true, (don't slot)
@@ -769,7 +796,10 @@ _main :: proc() {
 		// line := "?????.??????##. 2,3,3"
 		// line := "????? 2"
 		// line := "??.??????##. 3,3"
-		line := "??##. 3"
+		// line := "??##. 3"
+
+		// line := ".??#??.??# 3,2" // 3
+		line := "??# 2"
 		record := parse(transmute([]u8)string(line))
 		r := sliding_fit_solve(record)
 		fmt.println(r)
