@@ -326,6 +326,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	grp := n.grps[0]
 
 	br_acc := 0 // store BR count from last seg
+	optional_br_acc := 0 // discarded but available
 	final_seg_i := -1
 	final_seg_remaining := 0
 	other_i := -1
@@ -337,7 +338,7 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 					fmt.println("    x .BR set.len + br_acc > grp")
 					return
 				}
-				if seg.len + br_acc == grp {
+				if seg.len + br_acc == grp || seg.len + br_acc + optional_br_acc >= grp {
 					next_seg: Seg = {
 						state = .OP,
 						len   = 1,
@@ -382,9 +383,16 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 						discard = true
 					}
 
-					if !discard {
+					if discard {
+						fmt.println("   discard:", seg, seg_i)
+						// For cases like .??## 3 where we want to carry over 1 from
+						// the UN grp even though as a whole it has been discarded
+						optional_br_acc = seg.len - 1
+					} else {
 						br_acc += seg.len
-						other_i = seg_i
+						if other_i == -1 {
+							other_i = seg_i
+						}
 					}
 					continue seg_loop
 				}
@@ -405,7 +413,9 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 				// we can slot it!
 				// how much of this UN seg do we need?
 				final_seg_i = seg_i
-				other_i = seg_i
+				if other_i == -1 {
+					other_i = seg_i
+				}
 				final_seg_remaining = seg.len - (grp - br_acc)
 				final_seg_remaining -= 1 // we need a buffer .
 				if next_seg.state == .BR {
@@ -471,13 +481,19 @@ branch :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	if other_i > -1 {
 		n2: Node
 
+		discarded_count := 0
 		for seg, i in n.segs {
+			if i < other_i && seg.state == .UN {
+				// leave out discarded UN segments
+				discarded_count += 1
+				continue
+			}
 			if i == other_i {
 				assert(seg.state == .UN)
 				append_op := true
 				if i > 0 {
 					if n.segs[i - 1].state == .OP {
-						n2.segs[i - 1].len += 1
+						n2.segs[i - discarded_count - 1].len += 1
 						append_op = false
 					}
 				}
@@ -526,18 +542,62 @@ node_valid :: proc(n: ^Node) -> bool {
 node_resolved :: proc(n: ^Node) -> (int, bool) {
 	br_count := 0
 	un_count := 0
+	grp_space := 0
+	first_non_op := false
+
 	for seg in n.segs {
 		switch seg.state {
 		case .BR:
-			br_count += seg.len
+			{
+				first_non_op = true
+				br_count += seg.len
+				grp_space += seg.len
+			}
 		case .UN:
-			un_count += seg.len
+			{
+				first_non_op = true
+				un_count += seg.len
+				grp_space += seg.len
+			}
 		case .OP:
+			{
+				if first_non_op {
+					grp_space += 1
+				}
+			}
 		}
 	}
-	if br_count == 0 && len(n.grps) == 1 && n.grps[0] == 1 && un_count > 0 {
+	one_grp := len(n.grps) == 1
+	if br_count == 0 && one_grp && n.grps[0] == 1 && un_count > 0 {
 		return un_count, true
 	}
+
+	// ?? 2 --- not sure how common this is and if it's worth it
+	if one_grp && len(n.segs) == 1 && n.segs[0].state == .UN {
+		if n.segs[0].len == n.grps[0] {
+			return 1, true
+		}
+	}
+
+	//  ...???#?#?????? 1,8,2 --- requires 13, only have 12
+	grp_space_required := 0
+	for grp in n.grps {
+		grp_space_required += grp
+	}
+	grp_space_required += len(n.grps) - 1 // . between grps
+	if grp_space_required > grp_space {
+		return 0, true
+	}
+
+	// ?? --- currently branch will return this kind of thing
+	// ????? 2
+	// -> ??
+	// -> .???? 2
+	if len(n.grps) == 0 && br_count == 0 {
+		return 1, true
+	}
+
+	// not fully resolved
 	if un_count > 0 {
 		return 0, false
 	}
@@ -661,6 +721,23 @@ test :: proc() {
 		r := sliding_fit_solve(record)
 		assert(r == 10)
 	}
+	// compare failures
+	{
+		line := "##????????#?#?????? 4,1,8,2"
+		// line := "???#?#?????? 8,2"
+		record := parse(transmute([]u8)line)
+		r := sliding_fit_solve(record)
+		assert(r == 4)
+	}
+	{
+		line := "?????.??????##. 2,3,3"
+		// line := "????? 2"
+		// line := "??.??????##. 3,3"
+		// line := "??##. 3"
+		record := parse(transmute([]u8)line)
+		r := sliding_fit_solve(record)
+		assert(r == 8)
+	}
 }
 
 _main :: proc() {
@@ -686,9 +763,13 @@ _main :: proc() {
 	// }
 
 	{
-		// line := "?###???????? 3,2,1"
-		line := "##????????#?#?????? 4,1,8,2"
-		// line := "??#?. 1"
+		// line := "##????????#?#?????? 4,1,8,2"
+		// line := "???#?#?????? 8,2"
+
+		// line := "?????.??????##. 2,3,3"
+		// line := "????? 2"
+		// line := "??.??????##. 3,3"
+		line := "??##. 3"
 		record := parse(transmute([]u8)string(line))
 		r := sliding_fit_solve(record)
 		fmt.println(r)
