@@ -171,7 +171,7 @@ part1_2 :: proc(input: []u8) -> int {
 	for line in bytes.split_iterator(&input_, {'\n'}) {
 		// log_info("\n", string(line))
 		n := parse2(line, false)
-		defer node_destroy(&n)
+		// defer node_destroy(&n)
 		total += sliding_fit_solve(n, false)
 	}
 	return total
@@ -223,7 +223,8 @@ node_make :: proc(record: Record) -> Node {
 }
 
 node_to_string :: proc(n: ^Node) -> string {
-	b := strings.builder_make()
+
+	b := strings.builder_make(context.temp_allocator)
 	// defer strings.builder_destroy(&b)
 
 	for seg, i in n.segs {
@@ -450,6 +451,7 @@ node_destroy :: proc(n: ^Node) {
 }
 
 sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
+	defer free_all(context.temp_allocator)
 	node := node_
 	possible_arrangments := 0
 	if len(node.grps) == 0 {
@@ -467,15 +469,17 @@ sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
 	for queue.len(q) > 0 {
 		loop_count += 1
 		n := queue.pop_back(&q)
-		defer node_destroy(&n)
-		log_info("pop:", node_to_string(&n))
+		// defer node_destroy(&n)
+		defer delete(n.grps)
+		defer delete(n.segs)
+		// log_info("pop:", node_to_string(&n))
 		// log_debug("    ", n)
 
 		if use_split {
 			// If possible, split node into sub-problems and solve those
 			arrs, ok := split_solve(&n)
 			if ok {
-				log_info("-> +", arrs, sep = "")
+				// log_info("-> +", arrs, sep = "")
 				possible_arrangments += arrs
 				continue
 			}
@@ -483,7 +487,7 @@ sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
 		arrs, resolved := node_resolved2(&n)
 		if resolved {
 			if arrs > 0 {
-				log_info("-> +", arrs, sep = "")
+				// log_info("-> +", arrs, sep = "")
 				possible_arrangments += arrs
 			}
 			continue
@@ -494,7 +498,7 @@ sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
 		}
 	}
 	// log_info("loops:", loop_count)
-	log_warning(loop_count, "--", node_str)
+	// log_warning(loop_count, "--", node_str)
 	return possible_arrangments
 }
 
@@ -548,6 +552,7 @@ seg_splitter_iter :: proc(s: ^SegSplitter) -> ([]Seg, bool) {
 }
 
 split_solve :: proc(node: ^Node) -> (int, bool) {
+	defer free_all(context.temp_allocator)
 	// if solved, return number of arrangments, true
 	// if it can't be split, return 0, false
 
@@ -563,8 +568,16 @@ split_solve :: proc(node: ^Node) -> (int, bool) {
 		return 0, false
 	}
 
-	log_debug("-< split_solve", node_to_string(node))
-	q: Q;defer queue.destroy(&q)
+	// log_debug("-< split_solve", node_to_string(node))
+	q: Q
+	defer 
+	{
+		for queue.len(q) > 0 {
+			n := queue.pop_back(&q)
+			node_destroy(&n)
+		}
+		queue.destroy(&q)
+	}
 
 	// can split, iter over grps and segs
 	grp_splitter_state := GrpSplitter{node.grps[:], 0, node.max_grp}
@@ -577,21 +590,21 @@ split_solve :: proc(node: ^Node) -> (int, bool) {
 		n: Node
 		reserve(&n.segs, len(segs))
 		reserve(&n.grps, len(grps))
-		for seg, i in segs {
+		seg_loop: for seg, i in segs {
 			// When spliting, make sure ? next to # is handled correctly
 			if i == 0 && !first {
 				if seg.state == .UN {
 					seg_ := seg
 					seg_.len -= 1
 					add_seg(&n.segs, seg_)
-					break
+					continue seg_loop
 				}
 			} else if i == len(segs) - 1 && !last {
 				if seg.state == .UN {
 					seg_ := seg
 					seg_.len -= 1
 					add_seg(&n.segs, seg_)
-					break
+					continue seg_loop
 				}
 			}
 			append(&n.segs, seg)
@@ -606,19 +619,19 @@ split_solve :: proc(node: ^Node) -> (int, bool) {
 	// to get total arrangments
 	possible_arrangements := 1
 	loop_count := 0
+	flush_q := false // set to true when done, but need to empty q and free all nodes in it
 	for queue.len(q) > 0 {
 		loop_count += 1
 		n := queue.pop_back(&q)
-		defer node_destroy(&n)
-		log_debug("-< pop:", node_to_string(&n))
+		// log_debug("-< pop:", node_to_string(&n))
 		arrs := sliding_fit_solve(n, false)
-		log_debug("-< arrs *", arrs, sep = "")
+		// log_debug("-< arrs *", arrs, sep = "")
 		possible_arrangements *= arrs
 		if possible_arrangements == 0 {
 			break
 		}
 	}
-	log_info("-< exit split solve", possible_arrangements)
+	// log_info("-< exit split solve", possible_arrangements)
 	return possible_arrangements, true
 }
 
@@ -672,7 +685,7 @@ test_compare :: proc() {
 test :: proc() {
 	{
 		line := "?###???????? 3,2,1"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		fmt.println("got", r)
 		assert(r == 10)
@@ -680,37 +693,37 @@ test :: proc() {
 
 	{
 		line := "???.### 1,1,3"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		assert(r == 1)
 	}
 	{
 		line := ".??..??...?##. 1,1,3"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		assert(r == 4)
 	}
 	{
 		line := "?#?#?#?#?#?#?#? 1,3,1,6"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		assert(r == 1)
 	}
 	{
 		line := "????.#...#... 4,1,1"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		assert(r == 1)
 	}
 	{
 		line := "????.######..#####. 1,6,5"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		assert(r == 4)
 	}
 	{
 		line := "?###???????? 3,2,1"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		fmt.println("got", r)
 		assert(r == 10)
@@ -719,7 +732,7 @@ test :: proc() {
 	{
 		line := "##????????#?#?????? 4,1,8,2"
 		// line := "???#?#?????? 8,2"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		if r != 4 {
 			fmt.println("got", r, "expected 4")
@@ -731,13 +744,13 @@ test :: proc() {
 		// line := "????? 2"
 		// line := "??.??????##. 3,3"
 		// line := "??##. 3"
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		assert(r == 8)
 	}
 	{
 		line := ".??#??.??# 3,2" // 3
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		if r != 3 {
 			fmt.println("got", r, "expected 3")
@@ -746,7 +759,7 @@ test :: proc() {
 	}
 	{
 		line := "????????##?. 2,2,3" // 9
-		node := parse2(transmute([]u8)line, false);defer node_destroy(&node)
+		node := parse2(transmute([]u8)line, false)
 		r := sliding_fit_solve(node)
 		assert(r == 9)
 	}
@@ -772,12 +785,12 @@ _main :: proc() {
 	// 	fmt.println(r)
 	// 	assert(r == 21)
 	// }
-	// {
-	// 	t := transmute([]u8)string(TEST_INPUT)
-	// 	r := part1_2(t)
-	// 	fmt.println(r)
-	// 	assert(r == 21)
-	// }
+	{
+		t := transmute([]u8)string(TEST_INPUT)
+		r := part1_2(t)
+		fmt.println(r)
+		assert(r == 21)
+	}
 
 	{
 		// line := "##????????#?#?????? 4,1,8,2"
@@ -804,7 +817,7 @@ _main :: proc() {
 
 		// line := ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
 		line := "?###??????????###??????????###??????????###??????????###???????? 3,2,1,3,2,1,3,2,1,3,2,1,3,2,1"
-		node := parse2(transmute([]u8)string(line));defer node_destroy(&node)
+		node := parse2(transmute([]u8)string(line), false)
 		r := sliding_fit_solve(node)
 		fmt.println(r)
 	}
