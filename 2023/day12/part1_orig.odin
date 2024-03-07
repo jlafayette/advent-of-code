@@ -3,8 +3,54 @@ package day12
 import "core:bytes"
 import "core:fmt"
 import "core:math"
+import "core:strconv"
 import "core:strings"
 
+springs_fmt :: proc(springs: []State) -> string {
+	b := strings.builder_make(len(springs))
+	for s in springs {
+		switch s {
+		case .OP:
+			fmt.sbprint(&b, ".")
+		case .BR:
+			fmt.sbprint(&b, "#")
+		case .UN:
+			fmt.sbprint(&b, "?")
+		}
+	}
+	return strings.to_string(b)
+}
+
+parse :: proc(line: []u8) -> Record {
+	r: Record
+	// spring states
+	last_i: int // to resume place to search in line for grps
+	for char, i in line {
+		current: State
+		done := false
+		switch char {
+		case '.':
+			{current = .OP}
+		case '#':
+			{current = .BR}
+		case '?':
+			{current = .UN}
+		case:
+			{done = true}
+		}
+		if done {last_i = i;break}
+		append(&r.springs, current)
+	}
+	// grps
+	grp_data: []u8 = line[last_i + 1:]
+	for num in bytes.split_iterator(&grp_data, {','}) {
+		v, ok := strconv.parse_int(string(num), 10)
+		if ok {
+			append(&r.grps, v)
+		}
+	}
+	return r
+}
 
 solve :: proc(record: Record) -> int {
 	// for each UN in springs, switch it OP,BR

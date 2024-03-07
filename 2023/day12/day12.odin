@@ -73,50 +73,6 @@ record_destroy :: proc(r: ^Record) {
 	delete(r.springs)
 	delete(r.grps)
 }
-springs_fmt :: proc(springs: []State) -> string {
-	b := strings.builder_make(len(springs))
-	for s in springs {
-		switch s {
-		case .OP:
-			fmt.sbprint(&b, ".")
-		case .BR:
-			fmt.sbprint(&b, "#")
-		case .UN:
-			fmt.sbprint(&b, "?")
-		}
-	}
-	return strings.to_string(b)
-}
-parse :: proc(line: []u8) -> Record {
-	r: Record
-	// spring states
-	last_i: int // to resume place to search in line for grps
-	for char, i in line {
-		current: State
-		done := false
-		switch char {
-		case '.':
-			{current = .OP}
-		case '#':
-			{current = .BR}
-		case '?':
-			{current = .UN}
-		case:
-			{done = true}
-		}
-		if done {last_i = i;break}
-		append(&r.springs, current)
-	}
-	// grps
-	grp_data: []u8 = line[last_i + 1:]
-	for num in bytes.split_iterator(&grp_data, {','}) {
-		v, ok := strconv.parse_int(string(num), 10)
-		if ok {
-			append(&r.grps, v)
-		}
-	}
-	return r
-}
 parse2 :: proc(line: []u8, expand: bool = true) -> Node {
 	r: Record
 	defer record_destroy(&r)
@@ -472,14 +428,15 @@ sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
 		// defer node_destroy(&n)
 		defer delete(n.grps)
 		defer delete(n.segs)
-		// log_info("pop:", node_to_string(&n))
+		log_info("pop:", node_to_string(&n))
 		// log_debug("    ", n)
+		time.sleep(time.Millisecond * 10)
 
 		if use_split {
 			// If possible, split node into sub-problems and solve those
 			arrs, ok := split_solve(&n)
 			if ok {
-				// log_info("-> +", arrs, sep = "")
+				log_info("-> +", arrs, sep = "")
 				possible_arrangments += arrs
 				continue
 			}
@@ -487,7 +444,7 @@ sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
 		arrs, resolved := node_resolved2(&n)
 		if resolved {
 			if arrs > 0 {
-				// log_info("-> +", arrs, sep = "")
+				log_info("-> +", arrs, sep = "")
 				possible_arrangments += arrs
 			}
 			continue
@@ -497,8 +454,8 @@ sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
 			log_error("ERROR: branch failed\n ", node_str)
 		}
 	}
-	// log_info("loops:", loop_count)
-	// log_warning(loop_count, "--", node_str)
+	log_info("loops:", loop_count)
+	log_warning(loop_count, "--", node_str, "->", possible_arrangments)
 	return possible_arrangments
 }
 
@@ -682,88 +639,46 @@ test_compare :: proc() {
 	log_warning("Got", correct, "out of", total, "correct")
 }
 
+TestCase :: struct {
+	line:     string,
+	expand:   bool,
+	expected: int,
+}
 test :: proc() {
-	{
-		line := "?###???????? 3,2,1"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		fmt.println("got", r)
-		assert(r == 10)
+	cases := [?]TestCase {
+		// part 1
+		{"?###???????? 3,2,1", false, 10},
+		{"???.### 1,1,3", false, 1},
+		{".??..??...?##. 1,1,3", false, 4},
+		{"?#?#?#?#?#?#?#? 1,3,1,6", false, 1},
+		{"????.#...#... 4,1,1", false, 1},
+		{"????.######..#####. 1,6,5", false, 4},
+		{"?###???????? 3,2,1", false, 10},
+		// compare failures
+		{"##????????#?#?????? 4,1,8,2", false, 4},
+		{"?????.??????##. 2,3,3", false, 8},
+		{".??#??.??# 3,2", false, 3},
+		{"????????##?. 2,2,3", false, 9},
+		// part 2
+		{"???.### 1,1,3", true, 1},
+		{".??..??...?##. 1,1,3", true, 16384},
+		{"?#?#?#?#?#?#?#? 1,3,1,6", true, 1},
+		{"????.#...#... 4,1,1", true, 16},
+		{"????.######..#####. 1,6,5", true, 2500},
+		{"??????? 2,1", false, 10},
+		{"???????? 2,1", false, 15},
+		{"?###???????? 3,2,1", true, 506250},
 	}
-
-	{
-		line := "???.### 1,1,3"
-		node := parse2(transmute([]u8)line, false)
+	for t in cases {
+		node := parse2(transmute([]u8)t.line, t.expand)
 		r := sliding_fit_solve(node)
-		assert(r == 1)
-	}
-	{
-		line := ".??..??...?##. 1,1,3"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		assert(r == 4)
-	}
-	{
-		line := "?#?#?#?#?#?#?#? 1,3,1,6"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		assert(r == 1)
-	}
-	{
-		line := "????.#...#... 4,1,1"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		assert(r == 1)
-	}
-	{
-		line := "????.######..#####. 1,6,5"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		assert(r == 4)
-	}
-	{
-		line := "?###???????? 3,2,1"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		fmt.println("got", r)
-		assert(r == 10)
-	}
-	// compare failures
-	{
-		line := "##????????#?#?????? 4,1,8,2"
-		// line := "???#?#?????? 8,2"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		if r != 4 {
-			fmt.println("got", r, "expected 4")
+		if r != t.expected {
+			fmt.println("F got", r, "expected", t.expected)
+		} else {
+			fmt.println("P", r)
 		}
-		assert(r == 4)
+		assert(r == t.expected)
 	}
-	{
-		line := "?????.??????##. 2,3,3"
-		// line := "????? 2"
-		// line := "??.??????##. 3,3"
-		// line := "??##. 3"
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		assert(r == 8)
-	}
-	{
-		line := ".??#??.??# 3,2" // 3
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		if r != 3 {
-			fmt.println("got", r, "expected 3")
-		}
-		assert(r == 3)
-	}
-	{
-		line := "????????##?. 2,2,3" // 9
-		node := parse2(transmute([]u8)line, false)
-		r := sliding_fit_solve(node)
-		assert(r == 9)
-	}
-
 }
 
 // 10189491 -- .?###??????????###??????????###??????????###??????????###???????? 3,2,1,3,2,1,3,2,1,3,2,1,3,2,1
@@ -785,12 +700,12 @@ _main :: proc() {
 	// 	fmt.println(r)
 	// 	assert(r == 21)
 	// }
-	{
-		t := transmute([]u8)string(TEST_INPUT)
-		r := part1_2(t)
-		fmt.println(r)
-		assert(r == 21)
-	}
+	// {
+	// 	t := transmute([]u8)string(TEST_INPUT)
+	// 	r := part1_2(t)
+	// 	fmt.println(r)
+	// 	assert(r == 21)
+	// }
 
 	{
 		// line := "##????????#?#?????? 4,1,8,2"
@@ -816,10 +731,23 @@ _main :: proc() {
 		// line := "?#?#?#?#?#?#?#? 1,3,1,6" // 1
 
 		// line := ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
-		line := "?###??????????###??????????###??????????###??????????###???????? 3,2,1,3,2,1,3,2,1,3,2,1,3,2,1"
-		node := parse2(transmute([]u8)string(line), false)
-		r := sliding_fit_solve(node)
-		fmt.println(r)
+		// line := "?###???????? 3,2,1"
+		// node := parse2(transmute([]u8)string(line), true)
+		// r := sliding_fit_solve(node)
+		// fmt.println(r)
+
+		{
+			line := "??????? 2,1"
+			record := parse(transmute([]u8)line)
+			r := solve(record)
+			fmt.println(r)
+		}
+		{
+			line := "???????? 2,1"
+			record := parse(transmute([]u8)line)
+			r := solve(record)
+			fmt.println(r)
+		}
 	}
 
 	// {
