@@ -149,6 +149,7 @@ Seg :: struct {
 Node :: struct {
 	grps:          [dynamic]int,
 	segs:          [dynamic]Seg,
+	patterns:      Patterns,
 	max_grp:       int,
 	max_grp_count: int,
 }
@@ -177,6 +178,7 @@ node_make :: proc(record: Record) -> Node {
 			max_count += 1
 		}
 	}
+	n.patterns = patterns_make(n.grps[:], false)
 	n.max_grp = max_grp
 	n.max_grp_count = max_count
 	return n
@@ -224,22 +226,60 @@ add_seg :: proc(segs: ^[dynamic]Seg, seg: Seg) {
 	}
 	append(segs, seg)
 }
+prev_seg :: proc(segs: []Seg, i: int) -> Seg {
+	if i == 0 {
+		return Seg{.OP, 1}
+	} else {
+		return segs[i - 1]
+	}
+}
+next_seg :: proc(segs: []Seg, i: int) -> Seg {
+	if i == len(segs) - 1 {
+		return Seg{.OP, 1}
+	} else {
+		return segs[i + 1]
+	}
+}
+seg_end_distance :: proc(length: int, i: int) -> int {
+	return min(i, (length - 1) - i)
+}
 branch2 :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 	// branch n, putting up to 2 new nodes on the q
 
 	n1: Node
+	n2: Node
+
+	flip_i := -1
+	hi_score := -1
+	for seg, i in n.segs {
+		if seg.state != .UN {
+			continue
+		}
+		prev := prev_seg(n.segs[:], i)
+		next := next_seg(n.segs[:], i)
+		distance := seg_end_distance(len(n.segs), i)
+		score := distance
+		if prev.state == .BR {
+			score += prev.len
+		}
+		if next.state == .BR {
+			score += next.len
+		}
+		if score > hi_score {
+			hi_score = score
+			flip_i = i
+		}
+	}
+	if flip_i == -1 {
+		return false
+	}
+
 	reserve(&n1.grps, len(n.grps))
 	reserve(&n1.segs, len(n.segs) + 1)
-	n2: Node
 	reserve(&n2.grps, len(n.grps))
 	reserve(&n2.segs, len(n.segs) + 1)
-	done := false
-	prev := Seg{.OP, 1}
-	carry_br := 0
 	for seg, i in n.segs {
-		defer prev = seg
-		if !done && seg.state == .UN {
-			done = true
+		if i == flip_i {
 			// n1 flip 1 UN -> BR
 			{
 				add_seg(&n1.segs, Seg{.BR, 1})
@@ -255,43 +295,40 @@ branch2 :: proc(q: ^Q, n: ^Node) -> (ok: bool) {
 			add_seg(&n2.segs, seg)
 		}
 	}
-	if done {
-		// n1.grps = n.grps
-		// n2.grps = n.grps
-		max_grp := 0
-		for grp in n.grps {
-			max_grp = max(grp, max_grp)
-			append(&n1.grps, grp)
-			append(&n2.grps, grp)
-		}
-		max_count := 0
-		for grp in n.grps {
-			if grp == max_grp {
-				max_count += 1
-			}
-		}
-		n1.max_grp = max_grp
-		n2.max_grp = max_grp
-		n1.max_grp_count = max_count
-		n2.max_grp_count = max_count
 
-		// when LOG {log_debug("   -", node_to_string(&n1))}
-		node_simplify(&n1)
-		when LOG {
-			log_info("  q<-", node_to_string(&n1))
-		}
-		queue.push_back(q, n1)
-
-		// when LOG {log_debug("   -", node_to_string(&n2))}
-		node_simplify(&n2)
-		when LOG {
-			log_info("  q<-", node_to_string(&n2))
-		}
-		queue.push_back(q, n2)
-		return true
-	} else {
-		return false
+	max_grp := 0
+	for grp in n.grps {
+		max_grp = max(grp, max_grp)
+		append(&n1.grps, grp)
+		append(&n2.grps, grp)
 	}
+	max_count := 0
+	for grp in n.grps {
+		if grp == max_grp {
+			max_count += 1
+		}
+	}
+	n1.max_grp = max_grp
+	n2.max_grp = max_grp
+	n1.max_grp_count = max_count
+	n2.max_grp_count = max_count
+
+	// when LOG {log_debug("   -", node_to_string(&n1))}
+	node_simplify(&n1)
+	when LOG {
+		log_info("  q<-", node_to_string(&n1))
+	}
+	n1.patterns = patterns_make(n1.grps[:], false)
+	queue.push_back(q, n1)
+
+	// when LOG {log_debug("   -", node_to_string(&n2))}
+	node_simplify(&n2)
+	when LOG {
+		log_info("  q<-", node_to_string(&n2))
+	}
+	n2.patterns = patterns_make(n2.grps[:], false)
+	queue.push_back(q, n2)
+	return true
 }
 node_simplify :: proc(n: ^Node) {
 	// simplify node if possible
@@ -302,6 +339,159 @@ node_simplify :: proc(n: ^Node) {
 	// ?###????? 3,2,1 -> .###.????? 3,2,1
 	// (for now locked-in only applies to BR sections equal to max len)
 }
+
+Patterns :: struct {
+	grp3:    [dynamic][3]int,
+	grp2:    [dynamic][2]int,
+	grp1:    [dynamic]int,
+	br_grps: [3]int,
+	br_i:    int,
+	ok:      bool,
+}
+patterns_make :: proc(grps: []int, x5_grps: bool) -> Patterns {
+	p: Patterns
+	end: int
+	if x5_grps {
+		end = len(grps) / 5
+	} else {
+		end = len(grps)
+	}
+	// fmt.println("make:", grps, end)
+	reserve(&p.grp3, end)
+	reserve(&p.grp2, end)
+	reserve(&p.grp1, end)
+	for i in 0 ..< end {
+		i1 := i
+		v1 := grps[i1]
+		append(&p.grp1, v1)
+		if i + 1 < len(grps) {
+			// i2 := i + 1
+			// i2 := (i + 1) % len(grps)
+			v2 := grps[i + 1]
+			append(&p.grp2, [2]int{v1, v2})
+
+			if i + 2 < len(grps) {
+				// i3 := i + 2
+				// i3 := (i + 2) % len(grps)
+				v3 := grps[i + 2]
+				append(&p.grp3, [3]int{v1, v2, v3})
+			}
+		}
+	}
+	return p
+}
+patterns_destroy :: proc(p: ^Patterns) {
+	delete(p.grp3)
+	delete(p.grp2)
+	delete(p.grp1)
+}
+patterns_start_check :: proc(p: ^Patterns) {
+	p.ok = true
+	p.br_grps = {0, 0, 0}
+	p.br_i = 0
+}
+patterns_reset :: patterns_start_check
+patterns_eval_br_grps :: proc(p: ^Patterns) -> bool {
+	switch p.br_i {
+	case 1:
+		{
+			// check 1
+			for g in p.grp1 {
+				if p.br_grps.x == g {
+					return true
+				}
+			}
+			fmt.println("failed check 1 (", p.br_i, ")", p.br_grps.x, "not in", p.grp1)
+			return false
+		}
+	case 2:
+		{
+			// check 2
+			for g2 in p.grp2 {
+				if p.br_grps.xy == g2 {
+					return true
+				}
+			}
+			fmt.println("failed check 2", p.br_grps.xy, "not in", p.grp2)
+			return false
+		}
+	case 3:
+		{
+			// check 3
+			for g3 in p.grp3 {
+				if p.br_grps == g3 {
+					return true
+				}
+			}
+			fmt.println("failed check 3", p.br_grps.xyz, "not in", p.grp3)
+			return false
+		}
+	case:
+		{return true}
+	}
+}
+patterns_check_seg :: proc(p: ^Patterns, prev, seg, next: Seg) -> bool {
+	switch seg.state {
+	case .OP:
+		{return p.ok}
+	case .BR:
+		{
+			if prev.state == .UN || next.state == .UN {
+				// this is not something we can check
+				// check existing br_grps, then reset
+				p.ok = patterns_eval_br_grps(p)
+				patterns_reset(p)
+				return p.ok
+			} else {
+				assert(prev.state == .OP && next.state == .OP)
+				// check for overflow of 3
+				if p.br_i >= 3 {
+					// if overflow, check 3, then rotate
+					p.ok = patterns_eval_br_grps(p)
+					// x falls off, yz rotate left, then new is added as z
+					p.br_grps.xy = p.br_grps.yz
+					p.br_grps.z = seg.len
+					return p.ok
+				} else {
+					// else add br and inc br_i
+					p.br_grps[p.br_i] = seg.len
+					p.br_i += 1
+				}
+			}
+		}
+	case .UN:
+		{return p.ok}
+	}
+
+	return p.ok
+}
+patterns_end_check :: proc(p: ^Patterns) -> bool {
+	if !p.ok {return p.ok}
+	p.ok = patterns_eval_br_grps(p)
+	return p.ok
+}
+
+node_patterns_check :: proc(node: ^Node) -> bool {
+	p := node.patterns
+	ok := true
+	patterns_start_check(&p)
+	defer patterns_end_check(&p)
+	prev: Seg
+	next: Seg
+	for seg, i in node.segs {
+		prev = prev_seg(node.segs[:], i)
+		next = next_seg(node.segs[:], i)
+		ok = patterns_check_seg(&p, prev, seg, next)
+		if !ok {
+			break
+		}
+	}
+	if ok {
+		ok = patterns_end_check(&p)
+	}
+	return ok
+}
+
 node_resolved2 :: proc(n: ^Node) -> (int, bool) {
 	if len(n.grps) == 0 {
 		return 0, true
@@ -321,16 +511,14 @@ node_resolved2 :: proc(n: ^Node) -> (int, bool) {
 		switch seg.state {
 		case .BR:
 			{
+				prev := prev_seg(n.segs[:], seg_i)
+				next := next_seg(n.segs[:], seg_i)
 				if !first_un {
 					if grp_i >= len(n.grps) {
 						// when LOG { log_debug(" r x grp_i >= len(grps)") }
 						return 0, true
 					}
-					next_seg := Seg{.OP, 1}
-					if seg_i < len(n.segs) - 1 {
-						next_seg = n.segs[seg_i + 1]
-					}
-					if seg.len != n.grps[grp_i] && next_seg.state != .UN {
+					if seg.len != n.grps[grp_i] && next.state != .UN {
 						// when LOG {
 						// 	log_debug(" r x seg.len != grp && next != UN")
 						// 	log_debug("  ", n.grps[grp_i], seg, next_seg)
@@ -386,6 +574,13 @@ node_resolved2 :: proc(n: ^Node) -> (int, bool) {
 		if grp_space_required > grp_space {
 			return 0, true
 		}
+		ok := node_patterns_check(n)
+		if !ok {
+			fmt.println("Failed patterns check:", node_to_string(n), flush = false)
+			fmt.println(n.patterns)
+
+			return 0, true
+		}
 
 		// Needs more branching
 		return 0, false
@@ -414,6 +609,7 @@ node_resolved2 :: proc(n: ^Node) -> (int, bool) {
 node_destroy :: proc(n: ^Node) {
 	delete(n.grps)
 	delete(n.segs)
+	patterns_destroy(&n.patterns)
 }
 
 sliding_fit_solve :: proc(node_: Node, use_split: bool = true) -> int {
@@ -581,6 +777,7 @@ split_solve :: proc(node: ^Node) -> (int, bool) {
 		for grp in grps {
 			append(&n.grps, grp)
 		}
+		n.patterns = patterns_make(n.grps[:], false)
 		queue.push_back(&q, n)
 	}
 
@@ -610,9 +807,11 @@ part2 :: proc(input: []u8) -> int {
 	total := 0
 	input_ := input
 	for line in bytes.split_iterator(&input_, {'\n'}) {
-		when LOG {log_info("\n", string(line))}
+		// when LOG {log_info("\n", string(line))}
 		node := parse2(line)
-		total += sliding_fit_solve(node, true)
+		result := sliding_fit_solve(node, true)
+		fmt.println(result, "-", string(line))
+		total += result
 	}
 	return total
 }
@@ -652,12 +851,51 @@ test_compare :: proc() {
 	log_warning("Got", correct, "out of", total, "correct")
 }
 
+PatternsTestCase :: struct {
+	line:     string,
+	expand:   bool,
+	expected: bool,
+	x5_grps:  bool,
+}
+patterns_test :: proc() {
+	// .??.#..####.#....#.#...........#.#.#..#.#.####.####.#.?#???? 1,4,1,1,4,1,1,4,1,1,4,1,1,4,1
+	//     1  4    1    1 X (can't have a 1,1,1 pattern)
+	// 141,411,114 (allowed patterns of 3)
+	// 14,41,11 (allowed patterns of 2)
+	// 1,4 (allowed patterns of 1)
+	// line := "??.???#???? 1,4,1"
+	cases := [?]PatternsTestCase {
+		 {
+			line = ".??.#..####.#....#.#...........#.#.#..#.#.####.####.#.?#???? 1,4,1,1,4,1,1,4,1,1,4,1,1,4,1",
+			expand = false,
+			expected = false,
+			x5_grps = true,
+		},
+		{line = "???#?? 1,1", expand = false, expected = true},
+		{line = "?.#..? 1,1", expand = false, expected = true},
+		{line = "# 1", expand = false, expected = true},
+		{line = "??.#.#.#.? 1,1", expand = false, expected = false},
+		{line = "..##.#? 2,1", expand = false, expected = true},
+	}
+	for tc in cases {
+		node := parse2(transmute([]u8)string(tc.line), tc.expand);defer node_destroy(&node)
+		ok := node_patterns_check(&node)
+		if ok != tc.expected {
+			fmt.println("  F got", ok, "expected", tc.expected)
+		} else {
+			fmt.println("  P", ok)
+		}
+	}
+}
 TestCase :: struct {
 	line:     string,
 	expand:   bool,
 	expected: int,
 }
 test :: proc() {
+	fmt.println("--- Patterns --- ")
+	patterns_test()
+	fmt.println("--- SlidingFitSolve --- ")
 	cases := [?]TestCase {
 		// part 1
 		{"?###???????? 3,2,1", false, 10},
@@ -683,16 +921,18 @@ test :: proc() {
 		{"?###???????? 3,2,1", true, 506250},
 	}
 	for t in cases {
+		fmt.println(t.line)
 		node := parse2(transmute([]u8)t.line, t.expand)
 		r := sliding_fit_solve(node)
 		if r != t.expected {
-			fmt.println("F got", r, "expected", t.expected)
+			fmt.println("  F got", r, "expected", t.expected)
 		} else {
-			fmt.println("P", r)
+			fmt.println("  P", r)
 		}
 		assert(r == t.expected)
 	}
 }
+
 
 // 10189491 -- .?###??????????###??????????###??????????###??????????###???????? 3,2,1,3,2,1,3,2,1,3,2,1,3,2,1
 // 506250
@@ -706,6 +946,7 @@ _main :: proc() {
 	assert(ok)
 	read_input_tick := time.tick_now()
 	read_input_duration := time.tick_diff(start_tick, read_input_tick)
+	after_read_tick := time.tick_now()
 
 	// {
 	// 	t := transmute([]u8)string(TEST_INPUT)
@@ -720,34 +961,16 @@ _main :: proc() {
 	// 	assert(r == 21)
 	// }
 
+	// {
+	// 	line := "??.???#???? 1,4,1"
+	// 	// line := "???.### 1,1,3"
+	// 	// line := ".??..??...?##. 1,1,3"
+	// 	node := parse2(transmute([]u8)string(line), true)
+	// 	r := sliding_fit_solve(node)
+	// 	fmt.println(r)
+	// }
 	{
-		// line := "##????????#?#?????? 4,1,8,2"
-		// line := "???#?#?????? 8,2"
-
-		// line := "?????.??????##. 2,3,3" // 8
-		// line := "????? 2"
-		// line := "??.??????##. 3,3"
-		// line := "??##. 3"
-
-		// line := ".??#??.??# 3,2" // 3
-		// line := "??# 2"
-
-		// line := "???????#?????#..?? 5,2" // 4
-		// line := "?????#?????#..?? 5,2"
-
-		// not solved
-		// line := "????????##?. 2,2,3" // 9
-
-		// line := ".#?.?.?#?#..??##.?? 1,1,3,4,1" // 2
-
-
-		// line := "?#?#?#?#?#?#?#? 1,3,1,6" // 1
-
-		// line := ".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3"
-		line := "?###???????? 3,2,1"
-		node := parse2(transmute([]u8)string(line), true)
-		r := sliding_fit_solve(node)
-		fmt.println(r)
+		patterns_test()
 	}
 
 	// {
@@ -761,7 +984,7 @@ _main :: proc() {
 	// 	assert(r == 7017)
 	// }
 	part1_tick := time.tick_now()
-	part1_duration := time.tick_diff(start_tick, part1_tick)
+	part1_duration := time.tick_diff(after_read_tick, part1_tick)
 	// {
 	// 	t := transmute([]u8)string(TEST_INPUT)
 	// 	r := part2(t)
