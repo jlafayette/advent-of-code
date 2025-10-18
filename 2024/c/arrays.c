@@ -1,5 +1,7 @@
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
 
 // --- Array
 
@@ -18,6 +20,7 @@ Int32Array Int32Array_new(int len) {
 }
 
 int32_t Int32Array_get(Int32Array array, int index) {
+    assert(index >= 0 && index < array.len);
     if (index >= 0 && index < array.len) {
         return array.items[index];
     }
@@ -25,6 +28,7 @@ int32_t Int32Array_get(Int32Array array, int index) {
 }
 
 int32_t * Int32Array_get_ptr(Int32Array array, int index) {
+    assert(index >= 0 && index < array.len);
     if (index >= 0 && index < array.len) {
         return &array.items[index];
     }
@@ -32,6 +36,7 @@ int32_t * Int32Array_get_ptr(Int32Array array, int index) {
 }
 
 bool Int32Array_set(Int32Array array, int index, int32_t value) {
+    assert(index >= 0 && index < array.len);
     if (index >= 0 && index < array.len) {
         array.items[index] = value;
         return true;

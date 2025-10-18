@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
 
 #include "arrays.c"
 #include "read_file.h"
@@ -189,6 +190,36 @@ bool read_line(Buffer * buf, Line * out_line) {
   }
 }
 
+void Int32Array_set_sorted(Int32Array array, int32_t value) {
+    // start at right side
+    // if inserting into an already "full" array, push values off the left side
+    // (discard smallest)
+    int i = 0;
+    for (i = array.len-1; i >= 0; i -= 1) {
+        int32_t current = array.items[i];
+        if (value > current) {
+            break;
+        }
+    }
+    if (i < 0) {
+        return;
+    }
+    if (i == 0) {
+        Int32Array_set(array, i, value);
+        return;
+    }
+    memmove(array.items, array.items+1, i*sizeof(int32_t));
+    Int32Array_set(array, i, value);
+}
+
+int32_t diff(int32_t a, int32_t b) {
+  if (a > b) {
+    return (a - b);
+  } else {
+    return (b - a);
+  }
+}
+ 
 // --- main
 
 int main(int argc, char *argv[]) {
@@ -230,5 +261,45 @@ int main(int argc, char *argv[]) {
       line_array_i += 1;
     }
   }
+
+  // first smallest lf and pair with smallest rt
+  // should sort both lists and then compare one at a time
+  int pair_count = line_array_i;
+  Int32Array lf_array = Int32Array_new(pair_count);
+  Int32Array rt_array = Int32Array_new(pair_count);
+  for (int i = 0; i < pair_count; i += 1) {
+    Line line = LineArray_get(line_array, i);
+    Int32Array_set_sorted(lf_array, line.lf);
+    Int32Array_set_sorted(rt_array, line.rt);
+  }
+  int32_t sum = 0;
+  for (int i = 0; i < lf_array.len; i += 1) {
+    sum += diff(Int32Array_get(lf_array, i), Int32Array_get(rt_array, i));
+  }
+  printf("%d\n", sum);
+
+  // part2
+  int part2_result = 0;
+  int rt_i = 0;
+  for (int lf_i = 0; lf_i < lf_array.len; lf_i += 1) {
+    int32_t lf_v = Int32Array_get(lf_array, lf_i);
+    int rt_off = 0;
+    while (rt_i + rt_off < rt_array.len) {
+      int32_t rt_v = Int32Array_get(rt_array, rt_i + rt_off);
+      if (rt_v < lf_v) {
+        rt_i += 1;
+        continue;
+      }
+      if (rt_v == lf_v) {
+        rt_off += 1;
+        continue;
+      } else {
+        break;
+      }
+    }
+    part2_result += lf_v * rt_off;
+  }
+  printf("%d\n", part2_result);
+  
   return 0;
 }

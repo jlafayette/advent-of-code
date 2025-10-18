@@ -37,7 +37,7 @@ FileReadResult read_entire_file(char * filename) {
   if (fseek_ok != 0) {
     goto cleanup_and_return;
   }
-  printf("length=%d\n", r.length);
+  // printf("length=%d\n", r.length);
   r.buffer = malloc(r.length + 1);
   r.buffer[r.length] = '\0';
   if (!r.buffer) {
