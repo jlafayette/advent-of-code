@@ -8,66 +8,6 @@
 #include "arrays.c"
 #include "read_file.h"
 
-// --- Line
-
-typedef struct {
-  int count;
-  int lf;
-  int rt;
-} Line;
-
-Line line_empty() {
-    Line empty_line = {.count=0, .lf=0, .rt=0};
-    return empty_line;
-}
-
-void line_add_number(Line * line, int n) {
-  if (line->count == 0) {
-    line->lf = n;
-  } else if (line->count == 1) {
-    line->rt = n;
-  }
-  line->count += 1;
-}
-
-// --- LineArray
-
-typedef struct {
-    Line * items;
-    int len;
-} LineArray;
-
-LineArray LineArray_new(int len) {
-    LineArray array;
-    array.items = calloc(len, sizeof(Line));
-    if (array.items) {
-        array.len = len;
-    }
-    return array;
-}
-
-Line LineArray_get(LineArray array, int index) {
-    if (index >= 0 && index < array.len) {
-        return array.items[index];
-    }
-    return line_empty();
-}
-
-Line * LineArray_get_ptr(LineArray array, int index) {
-    if (index >= 0 && index < array.len) {
-        return &array.items[index];
-    }
-    return NULL;
-}
-
-bool LineArray_set(LineArray array, int index, Line value) {
-    if (index >= 0 && index < array.len) {
-        array.items[index] = value;
-        return true;
-    }
-    return false;
-}
-
 // --- buffer
 
 typedef struct {
@@ -164,32 +104,6 @@ void buffer_skip_to_newline(Buffer * buf) {
   buf->i += 1;
 }
 
-bool read_line(Buffer * buf, Line * out_line) {
-  Line line = line_empty();
-
-  buffer_skip(buf);
-  bool ok;
-  int lf = buffer_read_number(buf, &ok);
-  if (ok) {
-    line_add_number(&line, lf);
-  }
-  buffer_skip(buf);
-  int rt = buffer_read_number(buf, &ok);
-  if (ok) {
-    line_add_number(&line, rt);
-  }
-  buffer_skip_to_newline(buf);
-  
-  if (line.count == 2) {
-    out_line->count = line.count;
-    out_line->lf = line.lf;
-    out_line->rt = line.rt;
-    return true;
-  } else {
-    return false;
-  }
-}
-
 void Int32Array_set_sorted(Int32Array array, int32_t value) {
     // start at right side
     // if inserting into an already "full" array, push values off the left side
@@ -227,58 +141,54 @@ int main(int argc, char *argv[]) {
   if (argc == 2) {
     filename = argv[1];
   }
-  FileReadResult r = read_entire_file(filename);
-  if (!r.ok) {
+  FileReadResult file_result = read_entire_file(filename);
+  if (!file_result.ok) {
     return 1;
   }
   int i = 0;
-  int lines = 0; 
+  int line_count = 0; 
   while (1) {
-    if (i >= r.length) {
+    if (i >= file_result.length) {
       break;
     }
-    char ch = r.buffer[i];
+    char ch = file_result.buffer[i];
     if (ch == '\n') {
-      lines += 1;
+      line_count += 1;
     }
     i++;
   }
-  LineArray line_array = LineArray_new(lines);
   
-  int line_array_i = 0;
+  Int32Array lf_array = Int32Array_new(line_count);
+  Int32Array rt_array = Int32Array_new(line_count);
   Buffer buf = {
-    .data = r.buffer,
-    .len = r.length,
+    .data = file_result.buffer,
+    .len = file_result.length,
     .i = 0
   };
-  char * debug_line = &buf.data[buf.i]; // for seeing current line in debugger
   while (buf.i < buf.len) {
-    Line out = line_empty();
-    debug_line = &buf.data[buf.i];
-    bool ok = read_line(&buf, &out); 
-    if (ok) {
-      LineArray_set(line_array, line_array_i, out);
-      line_array_i += 1;
+    buffer_skip(&buf);
+    bool lf_ok = false;
+    int lf_number = buffer_read_number(&buf, &lf_ok);
+    buffer_skip(&buf);
+    bool rt_ok = false;
+    int rt_number = buffer_read_number(&buf, &rt_ok);
+    buffer_skip_to_newline(&buf);
+    if (lf_ok && rt_ok) {
+      Int32Array_set_sorted(lf_array, lf_number);
+      Int32Array_set_sorted(rt_array, rt_number);
     }
   }
 
+  // part 1
   // first smallest lf and pair with smallest rt
   // should sort both lists and then compare one at a time
-  int pair_count = line_array_i;
-  Int32Array lf_array = Int32Array_new(pair_count);
-  Int32Array rt_array = Int32Array_new(pair_count);
-  for (int i = 0; i < pair_count; i += 1) {
-    Line line = LineArray_get(line_array, i);
-    Int32Array_set_sorted(lf_array, line.lf);
-    Int32Array_set_sorted(rt_array, line.rt);
-  }
-  int32_t sum = 0;
+  int32_t part1_result = 0;
   for (int i = 0; i < lf_array.len; i += 1) {
-    sum += diff(Int32Array_get(lf_array, i), Int32Array_get(rt_array, i));
+    part1_result += diff(Int32Array_get(lf_array, i), Int32Array_get(rt_array, i));
   }
-  printf("%d\n", sum);
+  printf("%d\n", part1_result);
 
-  // part2
+  // part 2
   int part2_result = 0;
   int rt_i = 0;
   for (int lf_i = 0; lf_i < lf_array.len; lf_i += 1) {
@@ -303,3 +213,4 @@ int main(int argc, char *argv[]) {
   
   return 0;
 }
+
