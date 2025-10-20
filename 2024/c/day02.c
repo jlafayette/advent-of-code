@@ -79,16 +79,15 @@ int main(int argc, char*argv[]) {
     // must be gradually increasing or gradually decreasing
     // all increasing or all decreasing
     // differ by at least one and at most three
-    while (buf.i < buf.len) {
-        
+    for ( ; buf.i < buf.len; buffer_skip_to_next_line(&buf)) {
         bool ok = false;
         int n_prev = buffer_read_next_number(&buf, &ok);
         if (!ok) {
-            goto nextline;
+            continue;
         }
         int n = buffer_read_next_number(&buf, &ok);
         if (!ok) {
-            goto nextline;
+            continue;
         }
         bool increasing = n > n_prev;
 
@@ -116,9 +115,6 @@ int main(int argc, char*argv[]) {
         if (valid) {
             safe_reports += 1;
         }
-        
-        nextline:
-        buffer_skip_to_next_line(&buf);
     }
 
     printf("%d\n", safe_reports);
