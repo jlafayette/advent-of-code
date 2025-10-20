@@ -87,6 +87,95 @@ int main(int argc, char*argv[]) {
     }
 
     printf("%d\n", safe_reports);
+    assert(safe_reports == 246);
+
+    // part 2
+
+    // if one level can be skipped and it's safe, then it counts as safe
+    safe_reports = 0;
+    buf.i = 0;
+    
+    while (buf.i < buf.len) {
+
+        int intArray[16];
+        int ia_len = 0;
+
+        bool ok = true;
+        while (ok) {
+            intArray[ia_len] = buffer_read_next_number(&buf, &ok);
+            if (ok) {
+                ia_len += 1;
+            }
+        }
+
+        bool at_least_one_is_valid = false;
+
+        for (int skip_i = -1; skip_i < ia_len; skip_i += 1) {
+
+            int i = 0;
+            if (i == skip_i) {
+                i += 1;
+            }
+            if (i >= ia_len) {
+                continue;
+            }
+            int n_prev = intArray[i];
+            i += 1;
+            if (i == skip_i) {
+                i += 1;
+            }
+            if (i >= ia_len) {
+                continue;
+            }
+            int n = intArray[i];
+            bool increasing = n > n_prev;
+            bool valid = true;
+
+            while (true) {
+                if (n == n_prev) {
+                    // invalid, must increase or decrease by at least 1
+                    valid = false;
+                    break;
+                }
+                if (increasing && n < n_prev) {
+                    valid = false;
+                    break;
+                }
+                if (!increasing && n > n_prev) {
+                    valid = false;
+                    break;
+                }
+                int d = diff(n, n_prev);
+                if (d < 1 || d > 3) {
+                    valid = false;
+                    break;
+                }
+                n_prev = n;
+                i += 1;
+                if (i == skip_i) {
+                    i += 1;
+                }
+                if (i >= ia_len) {
+                    break;
+                }
+                n = intArray[i];
+            }
+
+            if (valid) {
+                at_least_one_is_valid = true;
+                break;
+            }
+            
+        }
+        if (at_least_one_is_valid) {
+            safe_reports += 1;
+        }
+        
+        buffer_skip_to_next_line(&buf);
+    }
+
+    printf("%d\n", safe_reports);
+    assert(safe_reports == 318);
     
     return 0;
     
