@@ -151,23 +151,22 @@ int main(int argc, char*argv[]) {
 
         bool at_least_one_is_valid = false;
 
-        bool done_with_skips = false;
-        while (!done_with_skips) {
-        
+        for (bool done_with_skips = false;
+            !done_with_skips;
+            IntSkipArray_reset(&int_skip_array, &done_with_skips)
+        ) {
             bool end = false;
-            bool valid = true;
             int n_prev = IntSkipArray_next(&int_skip_array, &end);
             if (end) {
-                valid = false;
-                goto skipreset;
+                continue;
             }
             int n = IntSkipArray_next(&int_skip_array, &end);
             if (end) {
-                valid = false;
-                goto skipreset;
+                continue;
             }
             bool increasing = n > n_prev;
 
+            bool valid = true;
             while (!end) {
                 if (increasing && n < n_prev) {
                     valid = false;
@@ -190,10 +189,6 @@ int main(int argc, char*argv[]) {
                 at_least_one_is_valid = true;
                 break;
             }
-
-            skipreset:
-            IntSkipArray_reset(&int_skip_array, &done_with_skips);
-            
         }
         if (at_least_one_is_valid) {
             safe_reports += 1;
