@@ -13,6 +13,46 @@ int diff(int a, int b) {
     }
 }
 
+typedef struct {
+    int * items;
+    int cap;
+    int len;
+    int i;
+    int skip_i;
+} IntSkipArray;
+
+void IntSkipArray_add(IntSkipArray * array, int value) {
+    assert(array->len < array->cap);
+    array->items[array->len] = value;
+    array->len += 1;
+}
+
+int IntSkipArray_next(IntSkipArray * array, bool * end) {
+    if (array->i == array->skip_i) {
+        array->i += 1;
+    }
+    if (array->i >= array->len) {
+        *end = true;
+        return 0;
+    }
+    *end = false;
+    int result = array->items[array->i];
+    array->i += 1;
+    return result;
+}
+
+void IntSkipArray_reset(IntSkipArray * array, bool * done) {
+    array->skip_i += 1;
+    if (array->skip_i >= array->len) {
+        *done = true;
+        return;
+    }
+    *done = false;
+    array->i = 0;
+    return;
+}
+
+
 int main(int argc, char*argv[]) {
     char * filename = "input_2_1_ex.txt";
     if (argc == 2) {
@@ -55,11 +95,6 @@ int main(int argc, char*argv[]) {
         bool valid = true;
         
         while (ok) {
-            if (n == n_prev) {
-                // invalid, must increase or decrease by at least 1
-                valid = false;
-                break;
-            }
             if (increasing && n < n_prev) {
                 valid = false;
                 break;
@@ -97,46 +132,43 @@ int main(int argc, char*argv[]) {
     
     while (buf.i < buf.len) {
 
-        int intArray[16];
-        int ia_len = 0;
+        int int_backing_array[16];
+        IntSkipArray int_skip_array = {
+            .items = int_backing_array,
+            .cap = 16,
+            .len = 0,
+            .i = 0,
+            .skip_i = -1
+        };
 
         bool ok = true;
         while (ok) {
-            intArray[ia_len] = buffer_read_next_number(&buf, &ok);
+            int number = buffer_read_next_number(&buf, &ok);
             if (ok) {
-                ia_len += 1;
+                IntSkipArray_add(&int_skip_array, number);
             }
         }
 
         bool at_least_one_is_valid = false;
 
-        for (int skip_i = -1; skip_i < ia_len; skip_i += 1) {
-
-            int i = 0;
-            if (i == skip_i) {
-                i += 1;
-            }
-            if (i >= ia_len) {
-                continue;
-            }
-            int n_prev = intArray[i];
-            i += 1;
-            if (i == skip_i) {
-                i += 1;
-            }
-            if (i >= ia_len) {
-                continue;
-            }
-            int n = intArray[i];
-            bool increasing = n > n_prev;
+        bool done_with_skips = false;
+        while (!done_with_skips) {
+        
+            bool end = false;
             bool valid = true;
+            int n_prev = IntSkipArray_next(&int_skip_array, &end);
+            if (end) {
+                valid = false;
+                goto skipreset;
+            }
+            int n = IntSkipArray_next(&int_skip_array, &end);
+            if (end) {
+                valid = false;
+                goto skipreset;
+            }
+            bool increasing = n > n_prev;
 
-            while (true) {
-                if (n == n_prev) {
-                    // invalid, must increase or decrease by at least 1
-                    valid = false;
-                    break;
-                }
+            while (!end) {
                 if (increasing && n < n_prev) {
                     valid = false;
                     break;
@@ -151,20 +183,16 @@ int main(int argc, char*argv[]) {
                     break;
                 }
                 n_prev = n;
-                i += 1;
-                if (i == skip_i) {
-                    i += 1;
-                }
-                if (i >= ia_len) {
-                    break;
-                }
-                n = intArray[i];
+                n = IntSkipArray_next(&int_skip_array, &end);
             }
 
             if (valid) {
                 at_least_one_is_valid = true;
                 break;
             }
+
+            skipreset:
+            IntSkipArray_reset(&int_skip_array, &done_with_skips);
             
         }
         if (at_least_one_is_valid) {
