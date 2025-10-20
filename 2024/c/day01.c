@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "arrays.c"
-#include "read_file.h"
+#include "read_file.c"
 
 // --- buffer
 
@@ -17,7 +17,6 @@ typedef struct {
 } Buffer;
 
 char buffer_peek(Buffer * buf) {
-  
   if (buf->i >= buf->len) {
     return 0;
   }
