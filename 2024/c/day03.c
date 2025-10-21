@@ -39,10 +39,34 @@ void chomp_all_fluff(Buffer * buf) {
         chomp_fluff(buf, &fluff);
     }
 }
+void chomp_fluff_2(Buffer * buf, bool * fluff) {
+    if (buf->i >= buf->len) {
+        *fluff = false;
+        return;
+    }
+    char ch = buffer_peek(buf);
+    if (ch == 'm' || ch == 'd') {
+        *fluff = false;
+        return;
+    }
+    buf->i += 1;
+    *fluff = true;
+    return;
+}
+int chomp_until_d_or_m(Buffer * buf) {
+    bool fluff = true;
+    int amount_chomped = 0;
+    while (fluff) {
+        chomp_fluff_2(buf, &fluff);
+        if (fluff) {
+            amount_chomped += 1;
+        }
+    }
+    return amount_chomped;
+}
 
 int buffer_next_multiply_solution(Buffer * buf) {
     chomp_all_fluff(buf);
-    
     bool ok = true;
     buffer_chomp(buf, 'm', &ok); if (!ok) { return 0; }
     buffer_chomp(buf, 'u', &ok); if (!ok) { return 0; }
@@ -66,39 +90,6 @@ int chomp_multiply_solution(Buffer * buf) {
     int n2 = buffer_read_number(buf, &ok); if (!ok) { return 0; }
     buffer_chomp(buf, ')', &ok); if (!ok) { return 0; }
     return n1 * n2;
-}
-
-void chomp_fluff_d_m(Buffer * buf, bool * fluff) {
-    if (buf->i >= buf->len) {
-        *fluff = false;
-        return;
-    }
-
-    char ch = buf->data[buf->i];
-    if (ch == 'm' || ch == 'd') {
-        *fluff = false;
-        return;
-    }
-    
-    buf->i += 1;
-    *fluff = true;
-    return;
-}
-void chomp_fluff_d(Buffer * buf, bool * fluff) {
-    if (buf->i >= buf->len) {
-        *fluff = false;
-        return;
-    }
-
-    char ch = buf->data[buf->i];
-    if (ch == 'd') {
-        *fluff = false;
-        return;
-    }
-    
-    buf->i += 1;
-    *fluff = true;
-    return;
 }
 
 bool buffer_is_dont_next(Buffer * buf) {
@@ -142,80 +133,6 @@ bool buffer_is_mul_next(Buffer * buf) {
     _buffer_peek_number(buf, i, &ok, &len); i += len; if (!ok) { return 0; }
     ok = buffer_peek_i(buf, i) == ')'; i++; if (!ok) { return 0; }
     return true;
-}
-
-void chomp_fluff_except_dont_m(Buffer * buf, bool * is_dont) {
-    bool fluff = true;
-    
-    while (fluff) {
-        chomp_fluff_d_m(buf, &fluff);
-        if (buffer_is_dont_next(buf)) {
-            *is_dont = true;
-            return;
-        } 
-        if (buffer_peek(buf) == 'm') {
-            *is_dont = false;
-            return;
-        } else {
-            // skip past d of do() so chomp_fluff_d_m can continue
-            buf->i += 1;
-            continue;
-        }
-    }
-}
-
-void chomp_dont(Buffer * buf) {
-    // don't()
-    buf->i += 7;
-}
-
-void chomp_until_do(Buffer * buf) {
-    bool fluff = true;
-    while (fluff) {
-        chomp_fluff_d(buf, &fluff);
-        if (buffer_is_do_next(buf)) {
-            return;
-        } else {
-            buf->i += 1;
-            continue;
-        }
-    }
-}
-
-void chomp_do(Buffer * buf) {
-    // do()
-    buf->i += 4;
-}
-
-int buffer_next_multiply_solution_with_dos(Buffer * buf, bool * do_mode) {
-    char * debug_line = &buf->data[buf->i];
-    if (*do_mode) {
-        // can ignore do()
-        // search for next don't()
-        // or next multiply solution
-        bool is_dont = false;
-        chomp_fluff_except_dont_m(buf, &is_dont);
-        debug_line = &buf->data[buf->i];
-        if (is_dont) {
-            chomp_dont(buf);
-            debug_line = &buf->data[buf->i];
-            *do_mode = false;
-            return 0;
-        } else {
-            return chomp_multiply_solution(buf);
-        }
-    } else {
-        // can ignore don't()
-        // search for next do()
-        // ignore multiply solution
-        debug_line = &buf->data[buf->i];
-        chomp_until_do(buf);
-        debug_line = &buf->data[buf->i];
-        chomp_do(buf);
-        debug_line = &buf->data[buf->i];
-        *do_mode = true;
-        return 0;
-    }
 }
 
 int main(int argc, char*argv[]) {
@@ -268,6 +185,7 @@ int main(int argc, char*argv[]) {
                 part2_result += mul;
             } else {
                 buf.i += 1;
+                chomp_until_d_or_m(&buf);
             }
         } else {
             bool do_next = buffer_is_do_next(&buf);
@@ -276,6 +194,7 @@ int main(int argc, char*argv[]) {
                 buf.i += 4;
             } else {
                 buf.i += 1;
+                chomp_until_d_or_m(&buf);
             }
         }
     }
