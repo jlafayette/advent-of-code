@@ -14,6 +14,14 @@ char buffer_peek(Buffer * buf) {
   char ch =  buf->data[buf->i];
   return ch;
 }
+char buffer_peek_i(Buffer * buf, int off) {
+  int i = buf->i + off;
+  if (i >= buf->len) {
+    return 0;
+  }
+  char ch = buf->data[i];
+  return ch;
+}
 
 bool is_digit(char ch) {
   return ch >= '0' && ch <= '9';
