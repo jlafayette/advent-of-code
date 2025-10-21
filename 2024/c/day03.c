@@ -166,12 +166,7 @@ int main(int argc, char*argv[]) {
     int part2_result = 0;
     bool do_mode = true;
     buf.i = 0;
-    char * debug_line = &buf.data[buf.i];
     while (buf.i < buf.len) {
-        // int next_multiply_solution = buffer_next_multiply_solution_with_dos(&buf, &do_mode);
-        // part2_result += next_multiply_solution;
-        debug_line = &buf.data[buf.i];
-
         if (do_mode) {
             bool dont_next = buffer_is_dont_next(&buf);
             if (dont_next) {
