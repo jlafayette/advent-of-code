@@ -66,3 +66,9 @@ FileReadResult read_entire_file(char * filename) {
   return r;
 }
 
+char * read_entire_file2(char * filename, bool * ok, int * len) {
+  FileReadResult result = read_entire_file(filename);
+  *ok = result.ok;
+  *len = result.length;
+  return result.buffer;
+}
