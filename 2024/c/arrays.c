@@ -3,7 +3,37 @@
 #include <stdbool.h>
 #include <assert.h>
 
-// --- Array
+// --- int Array
+
+typedef struct {
+    int * items;
+    int len;
+} IntArray;
+
+IntArray IntArray_new(int len) {
+    IntArray array;
+    array.items = calloc(len, sizeof(int));
+    if (array.items) {
+        array.len = len;
+    }
+    return array;
+}
+
+int IntArray_get(IntArray array, int index) {
+    assert(index >= 0 && index < array.len);
+    return array.items[index];
+}
+
+bool IntArray_set(IntArray array, int index, int value) {
+    assert(index >= 0 && index < array.len);
+    if (index >= 0 && index < array.len) {
+        array.items[index] = value;
+        return true;
+    }
+    return false;
+}
+
+// --- int32_t Array
 
 typedef struct {
     int32_t * items;
