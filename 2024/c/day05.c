@@ -104,12 +104,196 @@ bool IntArray_add_rule(IntArray array, int v1, int v2) {
             47|61  97 75 47 61 53 29 13 __ __ __ __ __ 
             
         */
+        
         memmove(array.items+v2_index, array.items+v2_index+1, (v1_index-v2_index)*sizeof(int));
         IntArray_set(array, v1_index, v2);
+
+        // scoot v2 1 along (didn't fix the issue)
+        // int tmp = IntArray_get(array, v2_index+1);
+        // IntArray_set(array, v2_index+1, v2);
+        // IntArray_set(array, v2_index, tmp);
+        
         changes_made = true;
     }
     return changes_made;
 }
+
+char * check_previous_rules(Buffer * buf, IntArray array) {
+    char * result = NULL;
+    int original_i = buf->i;
+
+    for (buf->i = 0; buf->i < original_i; buffer_skip_to_next_line(buf)) {
+        int line_start_i = buf->i;
+        bool ok = false;
+        int v1 = buffer_read_number(buf, &ok); if (!ok) { break; };
+        buf->i += 1;  // discard '|'
+        int v2 = buffer_read_number(buf, &ok); if (!ok) { break; };
+        assert(v1 != v2);
+        bool v1_found = false;
+        bool v2_found = false;
+        for (int i = 0; i < array.len; i += 1) {
+            int v = IntArray_get(array, i);
+            if (v == v1) {
+                v1_found = true;
+            }
+            if (v == v2) {
+                v2_found = true;
+            }
+            if (v2_found && !v1_found) {
+                result = &buf->data[line_start_i];
+                goto end;
+            }
+        }
+    }
+        
+    end:
+    buf->i = original_i;
+    
+    return result;
+}
+
+// Ordered Array -- holds the final ordered page rules
+
+typedef struct {
+    int * items;
+    int len;
+    int cap;
+} IntDynamicArray;
+
+IntDynamicArray IntDynamicArray_new(int cap) {
+    IntDynamicArray array;
+    array.len = 0;
+    array.cap = 0;
+    array.items = calloc(cap, sizeof(int));
+    if (array.items) {
+        array.cap = cap;
+    }
+    return array;
+}
+
+bool IntDynamicArray_append(IntDynamicArray * array, int item) {
+    if (array->len < array->cap) {
+        array->items[array->len] = item;
+        array->len += 1;
+        return true;
+    }
+    return false;
+}
+
+bool IntDynamicArray_contains(IntDynamicArray array, int value) {
+    for (int i = 0; i < array.len; i += 1) {
+        if (value == array.items[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+typedef struct {
+    int v1;
+    int v2;
+} Rule;
+
+typedef struct {
+    Rule * items;
+    int len;
+    int cap;
+} RuleArray;
+
+
+RuleArray RuleArray_new(int cap) {
+    RuleArray array;
+    array.len = 0;
+    array.cap = 0;
+    array.items = calloc(cap, sizeof(Rule));
+    if (array.items) {
+        array.cap = cap;
+    }
+    return array;
+}
+
+bool RuleArray_append(RuleArray * array, Rule item) {
+    assert(array->len < array->cap);
+    if (array->len < array->cap) {
+        array->items[array->len] = item;
+        array->len += 1;
+        return true;
+    }
+    return false;
+}
+
+void RuleArray_clear(RuleArray * array) {
+    array->len = 0;
+}
+
+// Tracker and TrackerDynamicArray
+
+typedef struct {
+    int value;
+    int lf_count;
+    int rt_count;
+} Tracker;
+
+typedef struct {
+    Tracker * items;
+    int len;
+    int cap;
+} TrackerDynamicArray;
+
+TrackerDynamicArray TrackerDynamicArray_new(int cap) {
+    TrackerDynamicArray array;
+    array.len = 0;
+    array.cap = 0;
+    array.items = calloc(cap, sizeof(Tracker));
+    if (array.items) {
+        array.cap = cap;
+    }
+    return array;
+}
+
+bool TrackerDynamicArray_append(TrackerDynamicArray * array, Tracker item) {
+    if (array->len < array->cap) {
+        array->items[array->len] = item;
+        array->len += 1;
+        return true;
+    }
+    return false;
+}
+
+void TrackerDynamicArray_clear(TrackerDynamicArray * array) {
+    array->len = 0;
+}
+
+void TrackerDynamicArray_add_rule(TrackerDynamicArray * array, int v1, int v2) {
+    bool v1_found = false;
+    bool v2_found = false;
+    for (int i = 0; i < array->len; i += 1) {
+        Tracker * t = &array->items[i];
+        if (t->value == v1) {
+            t->lf_count += 1;
+            v1_found = true;
+            continue;
+        }
+        if (t->value == v2) {
+            t->rt_count += 1;
+            v2_found = true;
+        }
+        if (v1_found && v2_found) {
+            break;
+        }
+    }
+    if (!v1_found) {
+        Tracker t = {.value = v1, .lf_count = 1, .rt_count = 0};
+        bool ok = TrackerDynamicArray_append(array, t);
+        assert(ok);
+    }
+    if (!v2_found) {
+        Tracker t = {.value = v2, .lf_count = 0, .rt_count = 1};
+        bool ok = TrackerDynamicArray_append(array, t);
+        assert(ok);
+    }
+}
+
 
 int main(int argc, char * argv[]) {
     char * filename = "input_5_1_ex.txt";
@@ -135,20 +319,125 @@ int main(int argc, char * argv[]) {
     }
     // char * updates = &buf.data[buf.i];
     int updates_i = buf.i;
-    int count = 0;
-    for (buf.i = updates_i; buf.i < buf.len; buf.i += 1) {
+    // int count = 0;
+    // for (buf.i = updates_i; buf.i < buf.len; buf.i += 1) {
+    //     bool ok = false;
+    //     int n = buffer_read_number(&buf, &ok);
+    //     if (ok) {
+    //         count += 1;
+    //     }
+    // }
+    
+    // count all rules
+    int rule_count = 0;
+    for (buf.i = 0; buf.i < updates_i; buffer_skip_to_next_line(&buf)) {
         bool ok = false;
-        int n = buffer_read_number(&buf, &ok);
-        if (ok) {
-            count += 1;
-        }
+        int v1 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+        buf.i += 1;  // discard '|'
+        int v2 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+        rule_count += 1;
+    }
+    RuleArray rules = RuleArray_new(rule_count);
+    for (buf.i = 0; buf.i < updates_i; buffer_skip_to_next_line(&buf)) {
+        bool ok = false;
+        int v1 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+        buf.i += 1;  // discard '|'
+        int v2 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+        Rule rule = {.v1=v1, .v2=v2};
+        RuleArray_append(&rules, rule);
     }
     
-    IntArray array = IntArray_new(count);
+    int update_count = 0;
+    int longest_update = 0;
+    buf.i = updates_i;
+    while (buf.i < buf.len) {
+        int current_update_len = 0;
+        bool ok = true;
+        // read single update loop
+        while(ok) {
+            int n = buffer_read_number(&buf, &ok);
+            if (!ok) { break; }
+            current_update_len += 1;
+            if (buffer_peek(&buf) == ',') {
+                buf.i += 1;
+            }
+        }
+        buffer_skip_to_next_line(&buf);
+        if (current_update_len > longest_update) {
+            longest_update = current_update_len;
+        }
+        if (current_update_len > 0) {
+            update_count += 1;
+        }
+    }
 
+    // store the current update being evaluated
+    IntDynamicArray update = IntDynamicArray_new(longest_update);
+    // read update to be evaluated
+
+    // evaluate
+
+    // if valid get middle number
+
+    // add middle number to total
+    
+    TrackerDynamicArray tda = TrackerDynamicArray_new(64);
+    IntDynamicArray ordered = IntDynamicArray_new(64);
+
+    // attempt 2
+    // find number that is always on the right
+    // find number that is always on the left
+    for (buf.i = 0; buf.i < updates_i; buffer_skip_to_next_line(&buf)) {
+        bool ok = false;
+        int v1 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+        buf.i += 1;  // discard '|'
+        int v2 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+        TrackerDynamicArray_add_rule(&tda, v1, v2);
+    }
+    int total_page_numbers = tda.len;
+    int last_page = 0;
+    for (int i = 0; i < tda.len; i += 1) {
+        Tracker t = tda.items[i];
+        if (t.rt_count == 0) {
+            bool ok = IntDynamicArray_append(&ordered, t.value);
+            assert(ok);
+        }
+        if (t.lf_count == 0) {
+            last_page = t.value;
+        }
+    }
+    assert(ordered.len == 1);
+    assert(last_page != 0);
+    while (ordered.len < total_page_numbers) {
+        TrackerDynamicArray_clear(&tda);
+        for (buf.i = 0; buf.i < updates_i; buffer_skip_to_next_line(&buf)) {
+            bool ok = false;
+            int v1 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+            buf.i += 1;  // discard '|'
+            int v2 = buffer_read_number(&buf, &ok); if (!ok) { break; };
+            if (!IntDynamicArray_contains(ordered, v1)) {
+                TrackerDynamicArray_add_rule(&tda, v1, v2);
+            }
+        }
+        if (tda.len == 0) {
+            bool ok = IntDynamicArray_append(&ordered, last_page);
+            assert(ok);
+        }
+        for (int i = 0; i < tda.len; i += 1) {
+            Tracker t = tda.items[i];
+            if (t.rt_count == 0) {
+                bool ok = IntDynamicArray_append(&ordered, t.value);
+                assert(ok);
+                break;
+            }
+        }
+    }
+
+    /*
+    // attempt 1 -- didn't work on full input
     int changes = 1;
     int loop_count = 0;
-    while (changes > 0 && loop_count < 50) {
+    while (changes > 0 && loop_count < 1) {
         changes = 0;
         loop_count += 1;
         for (buf.i = 0; buf.i < updates_i; buffer_skip_to_next_line(&buf)) {
@@ -160,31 +449,40 @@ int main(int argc, char * argv[]) {
             if (change) {
                 changes += 1;
             }
+            // check previous rules
+            
+            char * contradicted_rule = check_previous_rules(&buf, array);
+            if (contradicted_rule != NULL) {
+                break;
+            }
         }
     }
+    */
     
-    // IntArray_add_rule(array, 47, 53); //        47 53
-    // IntArray_add_rule(array, 97, 13); //     97 47 53 13
-    // IntArray_add_rule(array, 97, 61); //     97 47 53 13 61
-    // IntArray_add_rule(array, 97, 47); //     97 47 53 13 61
-    // IntArray_add_rule(array, 75, 29); //  75 97 47 53 13 61 29
-    // IntArray_add_rule(array, 61, 13); //  75 97 47 53    61 13 29  
-    // IntArray_add_rule(array, 75, 53); //  75 97 47 53    61 13 29 
-    // IntArray_add_rule(array, 29, 13); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 97, 29); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 53, 29); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 61, 53); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 97, 53); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 61, 29); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 47, 13); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 75, 47); //  75 97 47 53    61    29 13  
-    // IntArray_add_rule(array, 97, 75); //     97 75 47 53    61 29 13  
-    // IntArray_add_rule(array, 47, 61); //     97 75 47 61 53 61 29 13  
-    // IntArray_add_rule(array, 75, 61); //     97 75 47 61 53 61 29 13  
-    // IntArray_add_rule(array, 47, 29); //     97 75 47 61 53 61 29 13  
-    // IntArray_add_rule(array, 75, 13); //     97 75 47 61 53 61 29 13  
-    // IntArray_add_rule(array, 53, 13); //     97 75 47 61 53 61 29 13  
-
+    /*
+    47|53           47 53
+    97|13        97 47 53 13
+    97|61        97 47 53 13 61
+    97|47        97 47 53 13 61
+    75|29     75 97 47 53 13 61 29
+    61|13     75 97 47 53    61 13 29  
+    75|53     75 97 47 53    61 13 29 
+    29|13     75 97 47 53    61    29 13  
+    97|29     75 97 47 53    61    29 13  
+    53|29     75 97 47 53    61    29 13  
+    61|53     75 97 47 53    61    29 13  
+    97|53     75 97 47 53    61    29 13  
+    61|29     75 97 47 53    61    29 13  
+    47|13     75 97 47 53    61    29 13  
+    75|47     75 97 47 53    61    29 13  
+    97|75        97 75 47 53    61 29 13  
+    47|61        97 75 47 61 53 61 29 13  
+    75|61        97 75 47 61 53 61 29 13  
+    47|29        97 75 47 61 53 61 29 13  
+    75|13        97 75 47 61 53 61 29 13  
+    53|13        97 75 47 61 53 61 29 13  
+    */
+    
     // loop over update lines
     int valid_updates = 0;
     for (buf.i = updates_i; buf.i < buf.len; buffer_skip_to_next_line(&buf)) {
@@ -203,8 +501,8 @@ int main(int argc, char * argv[]) {
             };
             bool match = false;
             
-            while (rule_i < array.len) {
-                if (IntArray_get(array, rule_i) == n) {
+            while (rule_i < ordered.len) {
+                if (ordered.items[rule_i] == n) {
                     rule_i += 1;
                     match = true;
                     break;
@@ -234,29 +532,6 @@ int main(int argc, char * argv[]) {
 
     printf("%d\n", valid_updates);
 
-    /*
-    47|53           47 53
-    97|13        97 47 53 13
-    97|61        97 47 53 13 61
-    97|47        97 47 53 13 61
-    75|29     75 97 47 53 13 61 29
-    61|13     75 97 47 53    61 13 29  
-    75|53     75 97 47 53    61 13 29 
-    29|13     75 97 47 53    61    29 13  
-    97|29     75 97 47 53    61    29 13  
-    53|29     75 97 47 53    61    29 13  
-    61|53     75 97 47 53    61    29 13  
-    97|53     75 97 47 53    61    29 13  
-    61|29     75 97 47 53    61    29 13  
-    47|13     75 97 47 53    61    29 13  
-    75|47     75 97 47 53    61    29 13  
-    97|75        97 75 47 53    61 29 13  
-    47|61        97 75 47 61 53 61 29 13  
-    75|61        97 75 47 61 53 61 29 13  
-    47|29        97 75 47 61 53 61 29 13  
-    75|13        97 75 47 61 53 61 29 13  
-    53|13        97 75 47 61 53 61 29 13  
-    */
     
     return 0;
 }
