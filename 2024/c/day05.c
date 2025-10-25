@@ -20,6 +20,12 @@ bool buffer_after_two_new_lines(Buffer buf) {
     return with_carriage_return || without;
 }
 
+void IntArray_clear(IntArray array) {
+    for (int i = 0; i < array.len; i += 1) {
+        array.items[i] = 0;
+    }
+}
+
 bool IntArray_add_rule(IntArray array, int v1, int v2) {
     // start on left side with v1
     // iterate forward to check if it exists
@@ -189,6 +195,10 @@ bool IntDynamicArray_contains(IntDynamicArray array, int value) {
     return false;
 }
 
+void IntDynamicArray_clear(IntDynamicArray * array) {
+    array->len = 0;
+}
+
 typedef struct {
     int v1;
     int v2;
@@ -350,6 +360,7 @@ int main(int argc, char * argv[]) {
     int update_count = 0;
     int longest_update = 0;
     buf.i = updates_i;
+    // read all updates to get update stats
     while (buf.i < buf.len) {
         int current_update_len = 0;
         bool ok = true;
@@ -373,20 +384,120 @@ int main(int argc, char * argv[]) {
 
     // store the current update being evaluated
     IntDynamicArray update = IntDynamicArray_new(longest_update);
-    // read update to be evaluated
+    // ordered rules (per update)
+    IntDynamicArray ordered = IntDynamicArray_new(rules.len);
+    // Track position of pages in the rules to find
+    // one at the start or end
+    TrackerDynamicArray tda = TrackerDynamicArray_new(rules.len);
 
-    // evaluate
+    // loop over all updates
+    int part1_result = 0;
+    int valid_updates = 0;
+    buf.i = updates_i;
+    while (buf.i < buf.len) {
 
-    // if valid get middle number
+        // read single update to be evaluated
+        IntDynamicArray_clear(&update);
+        while (true) {
+            bool ok = false;
+            int n = buffer_read_number(&buf, &ok);
+            if (!ok) { break; }
+            IntDynamicArray_append(&update, n);
+            if (buffer_peek(&buf) == ',') {
+                buf.i += 1;
+            }
+        }
+        buffer_skip_to_next_line(&buf);
+        if (update.len == 0) {
+            break;
+        }
 
-    // add middle number to total
-    
-    TrackerDynamicArray tda = TrackerDynamicArray_new(64);
-    IntDynamicArray ordered = IntDynamicArray_new(64);
+        
+        // (evaluate 1) build ordered rules for current update
+        TrackerDynamicArray_clear(&tda);
+        IntDynamicArray_clear(&ordered);
+        for (int i = 0; i < rules.len; i += 1) {
+            Rule rule = rules.items[i];
+            bool contains_v1 = IntDynamicArray_contains(update, rule.v1);
+            bool contains_v2 = IntDynamicArray_contains(update, rule.v2);
+            if (contains_v1 && contains_v2) {
+                TrackerDynamicArray_add_rule(&tda, rule.v1, rule.v2);
+            }
+        }
+        int total_page_numbers = tda.len;
+        int last_page = 0;
+        for (int i = 0; i < tda.len; i += 1) {
+            Tracker t = tda.items[i];
+            if (t.rt_count == 0) {
+                bool ok = IntDynamicArray_append(&ordered, t.value);
+                assert(ok);
+            }
+            if (t.lf_count == 0) {
+                last_page = t.value;
+            }
+        }
+        assert(ordered.len == 1);
+        assert(last_page != 0);
+        while (ordered.len < total_page_numbers) {
+            TrackerDynamicArray_clear(&tda);
+            for (int i = 0; i < rules.len; i += 1) {
+                Rule rule = rules.items[i];
+                bool contains_v1 = IntDynamicArray_contains(update, rule.v1);
+                bool contains_v2 = IntDynamicArray_contains(update, rule.v2);
+                if (contains_v1 && contains_v2 && !IntDynamicArray_contains(ordered, rule.v1)) {
+                    TrackerDynamicArray_add_rule(&tda, rule.v1, rule.v2);
+                }
+            }
+            if (tda.len == 0) {
+                bool ok = IntDynamicArray_append(&ordered, last_page);
+                assert(ok);
+            }
+            for (int i = 0; i < tda.len; i += 1) {
+                Tracker t = tda.items[i];
+                if (t.rt_count == 0) {
+                    bool ok = IntDynamicArray_append(&ordered, t.value);
+                    assert(ok);
+                    break;
+                }
+            }
+        }
+        // (evaluate 2) check if current update is valid
+        bool valid = true;
+        int rule_i = 0;
+        for (int i = 0; i < update.len; i += 1) {
+            int n = update.items[i];
+            bool match = false;
+            while (rule_i < ordered.len) {
+                if (ordered.items[rule_i] == n) {
+                    rule_i += 1;
+                    match = true;
+                    break;
+                }
+                rule_i += 1;
+            }
+            if (!match) {
+                valid = false;
+                break;
+            }
+        }
+        if (valid) {
+            valid_updates += 1;
+            
+            // if valid get middle number
+            int middle_i = update.len / 2;
+            int middle_number = update.items[middle_i];
+
+            // add middle number to total
+            part1_result += middle_number;
+        }
+    }
 
     // attempt 2
+    /*
     // find number that is always on the right
     // find number that is always on the left
+    TrackerDynamicArray tda = TrackerDynamicArray_new(64);
+    IntDynamicArray ordered = IntDynamicArray_new(64);
     for (buf.i = 0; buf.i < updates_i; buffer_skip_to_next_line(&buf)) {
         bool ok = false;
         int v1 = buffer_read_number(&buf, &ok); if (!ok) { break; };
@@ -432,6 +543,7 @@ int main(int argc, char * argv[]) {
             }
         }
     }
+    */
 
     /*
     // attempt 1 -- didn't work on full input
@@ -484,6 +596,7 @@ int main(int argc, char * argv[]) {
     */
     
     // loop over update lines
+    /*
     int valid_updates = 0;
     for (buf.i = updates_i; buf.i < buf.len; buffer_skip_to_next_line(&buf)) {
         char ch = buffer_peek(&buf);        
@@ -529,8 +642,9 @@ int main(int argc, char * argv[]) {
             valid_updates += 1;
         }
     }
+    */
 
-    printf("%d\n", valid_updates);
+    printf("%d   %d\n", valid_updates, part1_result);
 
     
     return 0;
