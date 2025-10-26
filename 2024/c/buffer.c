@@ -7,22 +7,14 @@ typedef struct {
   int i;
 } Buffer;
 
-char buffer_peek(Buffer * buf) {
-  if (buf->i >= buf->len) {
+char buffer_peek(Buffer buf) {
+  if (buf.i >= buf.len) {
     return 0;
   }
-  char ch =  buf->data[buf->i];
+  char ch =  buf.data[buf.i];
   return ch;
 }
-char buffer_peek_i(Buffer * buf, int off) {
-  int i = buf->i + off;
-  if (i >= buf->len) {
-    return 0;
-  }
-  char ch = buf->data[i];
-  return ch;
-}
-char buffer_peek_i2(Buffer buf, int off) {
+char buffer_peek_i(Buffer buf, int off) {
   int i = buf.i + off;
   if (i >= buf.len) {
     return 0;
@@ -45,10 +37,10 @@ void buffer_skip(Buffer * buf) {
   if (buf->i >= buf->len) {
     return;
   }
-  char next = buffer_peek(buf);
+  char next = buffer_peek(*buf);
   while (!is_interesting(next) && buf->i < buf->len) {
     buf->i += 1;
-    next = buffer_peek(buf);
+    next = buffer_peek(*buf);
   }
 }
 
@@ -72,7 +64,7 @@ int buffer_read_number(Buffer * buf, bool * ok) {
   if (buf->i >= buf->len) {
     return 0;
   }
-  char ch = buffer_peek(buf);
+  char ch = buffer_peek(*buf);
   if (!is_digit(ch)) {
     return 0;
   }
@@ -90,7 +82,7 @@ int buffer_read_number(Buffer * buf, bool * ok) {
     if (buf->i >= buf->len) {
       break;
     }
-    ch = buffer_peek(buf);
+    ch = buffer_peek(*buf);
   }
   if (di > 0) {
     *ok = true;
@@ -108,10 +100,10 @@ void buffer_skip_to_next_line(Buffer * buf) {
   if (buf->i >= buf->len) {
     return;
   }
-  char ch = buffer_peek(buf);
+  char ch = buffer_peek(*buf);
   while (!is_newline(ch) && buf->i <= buf->len) {
     buf->i += 1;
-    ch = buffer_peek(buf);
+    ch = buffer_peek(*buf);
   }
   buf->i += 1;
 }

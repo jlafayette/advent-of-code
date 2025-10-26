@@ -9,14 +9,14 @@
 bool buffer_after_two_new_lines(Buffer buf) {
     // \r\n
     bool with_carriage_return = 
-            buffer_peek_i2(buf, -1) == '\n'
-         && buffer_peek_i2(buf, -2) == '\r'
-         && buffer_peek_i2(buf, -3) == '\n'
-         && buffer_peek_i2(buf, -4) == '\r';
+            buffer_peek_i(buf, -1) == '\n'
+         && buffer_peek_i(buf, -2) == '\r'
+         && buffer_peek_i(buf, -3) == '\n'
+         && buffer_peek_i(buf, -4) == '\r';
     // \n
     bool without =
-            buffer_peek_i2(buf, -1) == '\n'
-         && buffer_peek_i2(buf, -2) == '\n';
+            buffer_peek_i(buf, -1) == '\n'
+         && buffer_peek_i(buf, -2) == '\n';
     return with_carriage_return || without;
 }
 
@@ -221,7 +221,7 @@ int main(int argc, char * argv[]) {
             int n = buffer_read_number(&buf, &ok);
             if (!ok) { break; }
             current_length += 1;
-            if (buffer_peek(&buf) == ',') {
+            if (buffer_peek(buf) == ',') {
                 buf.i += 1;
             }
         }
@@ -253,7 +253,7 @@ int main(int argc, char * argv[]) {
             int n = buffer_read_number(&buf, &ok);
             if (!ok) { break; }
             IntDynamicArray_append(&update, n);
-            if (buffer_peek(&buf) == ',') {
+            if (buffer_peek(buf) == ',') {
                 buf.i += 1;
             }
         }
