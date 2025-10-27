@@ -16,7 +16,7 @@ char buffer_peek(Buffer buf) {
 }
 char buffer_peek_i(Buffer buf, int off) {
   int i = buf.i + off;
-  if (i >= buf.len) {
+  if (i >= buf.len || i < 0) {
     return 0;
   }
   char ch = buf.data[i];
