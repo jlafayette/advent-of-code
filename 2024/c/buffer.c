@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdbool.h>
+#include <inttypes.h>
 
 typedef struct {
   char * data;
@@ -44,21 +45,6 @@ void buffer_skip(Buffer * buf) {
   }
 }
 
-int i_pow(int base, int exponent) {
-  return (int)pow((double)base, (double)exponent);
-}
-
-int digitCharArray_to_number(char * digitCharArray, int len) {
-  int sum = 0;
-  int exponent = 0;
-  for (int i = len-1; i >= 0; i -= 1) {
-    int n = (int)digitCharArray[i];
-    sum += n * i_pow(10, exponent);
-    exponent += 1;
-  }
-  return sum;
-}
-
 int buffer_read_number(Buffer * buf, bool * ok) {
   *ok = false;
   if (buf->i >= buf->len) {
@@ -69,25 +55,41 @@ int buffer_read_number(Buffer * buf, bool * ok) {
     return 0;
   }
   
-  char digitCharArray[10];
-  for (int i = 0; i < 10; i += 1) {
-    digitCharArray[i] = 0;
-  }
-  int di = 0;
-    
+  int n = 0;
   while (is_digit(ch)) {
-    digitCharArray[di] = ch - '0';
-    di += 1;
+    char ch_n = ch - '0';
+    n = (n * 10) + (int)ch_n;
     buf->i += 1;
     if (buf->i >= buf->len) {
       break;
     }
     ch = buffer_peek(*buf);
   }
-  if (di > 0) {
-    *ok = true;
+  *ok = true;
+  return n;
+}
+
+uint64_t buffer_read_u64(Buffer * buf, bool * ok) {
+  *ok = false;
+  if (buf->i >= buf->len) {
+    return 0;
   }
-  int n = digitCharArray_to_number(digitCharArray, di);
+  char ch = buffer_peek(*buf);
+  if (!is_digit(ch)) {
+    return 0;
+  }
+  
+  uint64_t n = 0;
+  while (is_digit(ch)) {
+    char ch_n = ch - '0';
+    n = (n * 10) + (uint64_t)ch_n;
+    buf->i += 1;
+    if (buf->i >= buf->len) {
+      break;
+    }
+    ch = buffer_peek(*buf);
+  }
+  *ok = true;
   return n;
 }
 
@@ -106,5 +108,16 @@ void buffer_skip_to_next_line(Buffer * buf) {
     ch = buffer_peek(*buf);
   }
   buf->i += 1;
+}
+
+int buffer_line_count(Buffer buf) {
+  int count = 1;
+  for (buf.i = 0; buf.i < buf.len; buf.i += 1) {
+    char ch = buffer_peek(buf);
+    if (ch == '\n') {
+      count += 1;
+    }
+  }
+  return count;
 }
 
