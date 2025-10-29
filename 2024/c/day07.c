@@ -55,8 +55,24 @@ bool _get_bit(int n, int k) {
     return masked_n >> k;
 }
 
+/*
 int i_pow(int base, int exponent) {
     return (int)pow((double)base, (double)exponent);
+}
+*/
+int i_pow(int base, int exp) {
+    int r = base;
+    for (int i = 0; i < exp-1; i += 1) {
+        r = r * base;
+    };
+    return r;
+}
+uint64_t u64_pow(uint64_t base, uint64_t exp) {
+    uint64_t r = base;
+    for (uint64_t i = 0; i < exp-1; i += 1) {
+        r = r * base;
+    };
+    return r;
 }
 
 uint64_t Equation_solve(Equation eq) {
@@ -97,6 +113,93 @@ uint64_t Equation_solve(Equation eq) {
         }
     }
     
+    // no solutions
+    return 0;
+}
+
+typedef struct {
+    int gap_count;
+    int i;
+    int j;
+    int div;
+    int r;
+} Gen3;
+
+Gen3 Gen3_new(int gap_count) {
+    Gen3 g = {
+        .gap_count = gap_count,
+        .i = 0,
+        .j = 0,
+        .div = i_pow(3, gap_count - 1),
+        .r = 0,
+    };
+    return g;
+}
+
+int Gen3_next(Gen3 * g) {
+    if (g->gap_count == 1) {
+        int a = g->i;
+        g->i += 1;
+        return a;
+    }
+    if (g->j >= g->gap_count) {
+        g->j = 0;
+        g->i += 1;
+        g->r = g->i;
+        g->div = i_pow(3, g->gap_count - 1);
+    }
+
+    int a = g->r / g->div;
+    g->r = g->r - (a * g->div);
+    g->div = g->div / 3;
+    g->j += 1;
+    return a;
+}
+
+uint64_t concat(uint64_t a, uint64_t b) {
+    uint64_t len_b = 1;
+    uint64_t r = 10;
+    while (true) {
+        if ((b % r) == b) {
+            break;
+        }
+        r = r * 10;
+        len_b += 1;
+    }
+    uint64_t result = 0;
+    result = (a * u64_pow(10, len_b)) + b;
+    return result;
+}
+
+uint64_t Equation_solve2(Equation eq) {
+    // iterate over all possible +/*/concat possibilties
+    
+    // c for combination
+    Gen3 g3 = Gen3_new(eq.numbers.len-1);
+    int max_c = i_pow(3, eq.numbers.len-1);
+    for (int c = 0; c < max_c; c += 1) {
+        // a single combination
+        uint64_t a = 0; // a for answer
+        for (int i = 0; i < eq.numbers.len; i += 1) {
+            uint64_t n = (uint64_t)eq.numbers.items[i];
+            if (i == 0) {
+                a = n;
+                continue;
+            }
+            int op = Gen3_next(&g3);
+            switch (op) {
+                case 0: a = a + n; break;
+                case 1: a = a * n; break;
+                case 2: a = concat(a, n); break;
+            }
+            if (a > eq.test_value) {
+                break;
+            }
+        }
+        if (a == eq.test_value) {
+            return a;
+        }
+    }
     // no solutions
     return 0;
 }
@@ -201,6 +304,17 @@ int main(int argc, char * argv[]) {
     
     // 21572148763543  correct
     printf("%" PRIu64 "\n", part1_result);
+    
+    uint64_t part2_result = 0;
+    for (int i = 0; i < equations.len; i += 1) {
+         uint64_t s = Equation_solve2(equations.items[i]);
+         if (s > 0) {
+             part2_result += s;
+         }
+    }
+
+    // 562028995691762 (too low)
+    printf("%" PRIu64 "\n", part2_result);
     
     return 0;
 }
