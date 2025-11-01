@@ -304,16 +304,22 @@ int main(int argc, char * argv[]) {
     
     // 21572148763543  correct
     printf("%" PRIu64 "\n", part1_result);
-    
+
     uint64_t part2_result = 0;
     for (int i = 0; i < equations.len; i += 1) {
-         uint64_t s = Equation_solve2(equations.items[i]);
-         if (s > 0) {
-             part2_result += s;
-         }
+        //  79002336: 4 1 47 2 1 2 9 57 2 4 14 1
+        if (i == 5) {
+            assert(equations.items[i].test_value == 79002336);
+        }
+        
+        uint64_t s = Equation_solve2(equations.items[i]);
+        if (s > 0) {
+            part2_result += s;
+        }
     }
-
+    
     // 562028995691762 (too low)
+    // 581941094529163 (ok)
     printf("%" PRIu64 "\n", part2_result);
     
     return 0;
