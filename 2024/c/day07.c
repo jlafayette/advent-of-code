@@ -192,15 +192,12 @@ uint64_t Equation_solve2(Equation eq) {
                 case 1: a = a * n; break;
                 case 2: a = concat(a, n); break;
             }
-            if (a > eq.test_value) {
-                break;
-            }
         }
         if (a == eq.test_value) {
             return a;
         }
     }
-    // no solutions
+    // no answer
     return 0;
 }
 
@@ -307,10 +304,9 @@ int main(int argc, char * argv[]) {
 
     uint64_t part2_result = 0;
     for (int i = 0; i < equations.len; i += 1) {
-        //  79002336: 4 1 47 2 1 2 9 57 2 4 14 1
-        if (i == 5) {
-            assert(equations.items[i].test_value == 79002336);
-        }
+        // if (i == 5) {
+        //     assert(equations.items[i].test_value == 79002336);
+        // }
         
         uint64_t s = Equation_solve2(equations.items[i]);
         if (s > 0) {
