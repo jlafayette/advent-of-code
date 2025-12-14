@@ -103,26 +103,10 @@ part2 :: proc(g: ^Grid) -> int {
 	return result
 }
 
-part1 :: proc(grid: Grid) -> int {
-	result: int
-	for y in 0 ..< grid.h {
-		for x in 0 ..< grid.w {
-			is_roll := grid_get(grid, {x, y})
-			if !is_roll {continue}
-			adjacent_rolls := 0
-			for x_off in -1 ..= 1 {
-				for y_off in -1 ..= 1 {
-					if x_off == 0 && y_off == 0 {continue}
-					if grid_get(grid, {x + x_off, y + y_off}) {
-						adjacent_rolls += 1
-					}
-				}
-			}
-			if adjacent_rolls < 4 {
-				result += 1
-			}
-		}
-	}
+part1 :: proc(grid: ^Grid) -> int {
+	grid_mark_accessible(grid)
+	result: int = len(grid.accessible)
+	clear_dynamic_array(&grid.accessible)
 	return result
 }
 
@@ -139,7 +123,7 @@ main :: proc() {
 
 	grid := grid_init(data)
 
-	result1 := part1(grid)
+	result1 := part1(&grid)
 	if filename == "input.txt" {
 		assert(result1 == 1464)
 	}
