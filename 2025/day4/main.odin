@@ -7,11 +7,12 @@ import "core:strconv"
 
 
 Grid :: struct {
-	data:    []byte,
+	data:       []byte,
 	// \n (1) or \r\n (2)
-	sep_len: int,
-	w:       int,
-	h:       int,
+	sep_len:    int,
+	w:          int,
+	h:          int,
+	accessible: [dynamic][2]int,
 }
 
 grid_init :: proc(data: []byte) -> Grid {
@@ -36,7 +37,8 @@ grid_init :: proc(data: []byte) -> Grid {
 		}
 	}
 
-	return Grid{data, sep_len, w, h}
+	accessible: [dynamic][2]int
+	return Grid{data, sep_len, w, h, accessible}
 }
 
 grid_get :: proc(g: Grid, pos: [2]int) -> bool {
@@ -47,6 +49,58 @@ grid_get :: proc(g: Grid, pos: [2]int) -> bool {
 		return ch == '@'
 	}
 	return false
+}
+
+grid_mark_accessible :: proc(g: ^Grid) {
+	for y in 0 ..< g.h {
+		for x in 0 ..< g.w {
+			is_roll := grid_get(g^, {x, y})
+			if !is_roll {continue}
+			adjacent_rolls := 0
+			for x_off in -1 ..= 1 {
+				for y_off in -1 ..= 1 {
+					if x_off == 0 && y_off == 0 {continue}
+					if grid_get(g^, {x + x_off, y + y_off}) {
+						adjacent_rolls += 1
+					}
+				}
+			}
+			if adjacent_rolls < 4 {
+				pos: [2]int = {x, y}
+				append_elem(&g.accessible, pos)
+			}
+		}
+	}
+}
+
+grid_remove_marked :: proc(g: ^Grid) {
+	for pos in g.accessible {
+		x := pos.x
+		y := pos.y
+		in_bounds: bool = x >= 0 && x < g.w && y >= 0 && y < g.h
+		assert(in_bounds)
+		if in_bounds {
+			index := (y * (g.w + g.sep_len)) + x
+			ch := g.data[index]
+			assert(ch == '@')
+			g.data[index] = '.'
+		}
+	}
+	clear_dynamic_array(&g.accessible)
+}
+
+part2 :: proc(g: ^Grid) -> int {
+	result: int
+	for true {
+		grid_mark_accessible(g)
+		if len(g.accessible) > 0 {
+			result += len(g.accessible)
+			grid_remove_marked(g)
+		} else {
+			break
+		}
+	}
+	return result
 }
 
 part1 :: proc(grid: Grid) -> int {
@@ -86,8 +140,15 @@ main :: proc() {
 	grid := grid_init(data)
 
 	result1 := part1(grid)
+	if filename == "input.txt" {
+		assert(result1 == 1464)
+	}
 	fmt.println(result1)
 
-
+	result2 := part2(&grid)
+	if filename == "input.txt" {
+		assert(result2 == 8409)
+	}
+	fmt.println(result2)
 }
 
