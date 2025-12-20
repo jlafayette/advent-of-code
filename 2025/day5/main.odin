@@ -3,6 +3,7 @@ package main
 import "core:bytes"
 import "core:fmt"
 import "core:os"
+import "core:slice"
 import "core:strconv"
 
 Data :: struct {
@@ -68,30 +69,14 @@ part1 :: proc(input: []byte) -> int {
 }
 
 merge :: proc(r1, r2: [2]int) -> ([2]int, bool) {
-	r: [2]int
-	// r2.x is within r1
 	if r2.x >= r1.x && r2.x <= r1.y {
-		r.x = r1.x
-		r.y = max(r1.y, r2.y)
-		return r, true
-		// r2.y is within r1
+		// r2.x is within r1
+		return {r1.x, max(r1.y, r2.y)}, true
 	} else if r2.y >= r1.x && r2.y <= r1.y {
-		r.x = min(r1.x, r2.x)
-		r.y = r1.y
-		return r, true
-		// r1.x is within r2
-	} else if r1.x >= r2.x && r1.x <= r2.y {
-		r.x = r2.x
-		r.y = max(r1.y, r2.y)
-		return r, true
-		// r1.y is within r2
-	} else if r1.y >= r2.x && r1.y <= r2.y {
-		r.x = min(r1.x, r2.x)
-		r.y = r2.y
-		return r, true
+		// r2.y is within r1
+		return {min(r1.x, r2.x), r1.y}, true
 	}
-
-	return r, false
+	return {0, 0}, false
 }
 
 part2 :: proc(input: []byte) -> int {
@@ -150,6 +135,14 @@ test_merge :: proc(r1, r2, expected: [2]int, expected_ok: bool) {
 }
 
 main :: proc() {
+	if slice.contains(os.args, "-t") || slice.contains(os.args, "--test") {
+		test_merge({1, 3}, {2, 4}, {1, 4}, true)
+		test_merge({8, 11}, {2, 4}, {0, 0}, false)
+		test_merge({1, 3}, {5, 9}, {0, 0}, false)
+		test_merge({5, 11}, {3, 5}, {3, 11}, true)
+		os.exit(0)
+	}
+
 	filename := "example.txt"
 	if len(os.args) == 2 {
 		filename = os.args[1]
@@ -173,10 +166,5 @@ main :: proc() {
 		assert(result1 == 828)
 		assert(result2 == 352681648086146)
 	}
-
-	// test_merge({1, 3}, {2, 4}, {1, 4}, true)
-	// test_merge({8, 11}, {2, 4}, {0, 0}, false)
-	// test_merge({1, 3}, {5, 9}, {0, 0}, false)
-	// test_merge({5, 11}, {3, 5}, {3, 11}, true)
 }
 
