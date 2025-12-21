@@ -221,9 +221,7 @@ part2 :: proc(input: []byte) -> int {
 	result: int = 0
 	data := parse2(input)
 	#reverse for p in data.problems {
-
 		r: int = -1
-
 		for x := p.col_offset + p.width - 1; x >= p.col_offset; x -= 1 {
 			full_n: int = 0
 			for y in 0 ..< (data.row_count - 1) {
