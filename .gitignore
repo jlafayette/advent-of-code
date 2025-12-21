@@ -1,4 +1,11 @@
+# input and example files
 **/input
+**/input2
+*.txt
+
+# output and logs
+*.log
+**/out
 
 # MacOS
 .DS_Store
@@ -12,6 +19,11 @@ __pycache__/
 *.exe
 # Debug files
 *.pdb
+*.rdbg
+**/debug
+**/t
+**/t.*
+**/p.*
 
 # Environments
 venv/
