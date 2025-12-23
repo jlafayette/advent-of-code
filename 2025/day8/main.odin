@@ -1,0 +1,275 @@
+package main
+
+import "core:bytes"
+import "core:fmt"
+import "core:os"
+import "core:slice"
+import "core:strconv"
+
+Data :: struct {
+	boxes: [dynamic][3]int,
+}
+
+get_sep :: proc(input: []byte) -> []byte {
+	sep: []byte = make([]byte, 1)
+	sep[0] = '\n'
+	for ch, i in input {
+		if ch == '\n' && i > 0 {
+			if input[i - 1] == '\r' {
+				sep = make([]byte, 2)
+				sep[0] = '\r'
+				sep[1] = '\n'
+			}
+		}
+	}
+	return sep
+}
+
+parse :: proc(input: []byte) -> Data {
+	data: Data
+
+	sep := get_sep(input)
+	buf := input[:]
+	for {
+		line_buf, line_ok := bytes.split_iterator(&buf, sep)
+		if !line_ok || len(line_buf) == 0 {
+			break
+		}
+
+		num_bufs := bytes.split(line_buf, {','})
+		assert(len(num_bufs) == 3)
+
+		box: [3]int
+		ok: bool
+		box[0], ok = strconv.parse_int(string(num_bufs[0]), 10);assert(ok)
+		box[1], ok = strconv.parse_int(string(num_bufs[1]), 10);assert(ok)
+		box[2], ok = strconv.parse_int(string(num_bufs[2]), 10);assert(ok)
+		append_elem(&data.boxes, box)
+	}
+
+	return data
+}
+
+BoundingBox :: struct {
+	min: [3]int,
+	max: [3]int,
+}
+
+distance :: proc(p1, p2: [3]int) -> int {
+	x := abs(p1.x - p2.x)
+	y := abs(p1.y - p2.y)
+	z := abs(p1.z - p2.z)
+	return x * x + y * y + z * z
+}
+
+DistanceIndex :: struct {
+	index:    int,
+	distance: int,
+}
+distance_index_less :: proc(i, j: DistanceIndex) -> bool {
+	return i.distance < j.distance
+}
+
+Circuits :: struct {
+	m: map[int]Maybe(^[dynamic]int),
+}
+
+Vis :: struct {
+	count:     int,
+	indexes:   []int,
+	positions: []int,
+}
+
+vis_top_3 :: proc(m: map[int]^[dynamic]int) -> [3]Vis {
+	r: [3]Vis
+
+	counts: [3]int
+	for key in m {
+		v := m[key]
+		if v == nil {
+			continue
+		}
+		// TODO
+	}
+
+	return r
+}
+
+VisPrint :: struct {
+	index:   int,
+	pos:     [3]int,
+	circuit: ^[dynamic]int,
+}
+
+vis_circuits :: proc(m: map[int]^[dynamic]int, boxes: [][3]int) {
+	vis_array := make([]VisPrint, len(m))
+	for key in m {
+		pos := boxes[key]
+		circuit := m[key]
+		vis_array[key] = VisPrint{key, pos, circuit}
+	}
+	for vis in vis_array {
+		fmt.printfln("%v", vis)
+	}
+}
+
+part1 :: proc(input: []byte) -> int {
+	result: int
+
+	data := parse(input)
+
+	bb: BoundingBox
+	for pos, i in data.boxes {
+		if i == 0 {
+			bb.min = pos
+			bb.max = pos
+		}
+		bb.min.x = min(bb.min.x, pos.x)
+		bb.min.y = min(bb.min.y, pos.y)
+		bb.min.z = min(bb.min.z, pos.z)
+		bb.max.x = max(bb.max.x, pos.x)
+		bb.max.y = max(bb.max.y, pos.y)
+		bb.max.z = max(bb.max.z, pos.z)
+	}
+	fmt.println(bb)
+
+	circuits := make_map_cap(map[int]^[dynamic]int, len(data.boxes))
+	for pos, i in data.boxes {
+		circuits[i] = nil
+	}
+
+	stride := len(data.boxes)
+	distances := make([]int, stride * stride)
+	for p1, i in data.boxes {
+		for p2, j in data.boxes {
+			index := stride * j + i
+			distances[index] = distance(p1, p2)
+		}
+	}
+
+	// stores distance and index into distances slice
+	// this index can be unpacked into i and j, which
+	// are indexes into the original circuits map value and
+	// the indexes into data.boxes
+	sorted_distances := make([]DistanceIndex, len(distances))
+	for d, i in distances {
+		sorted_distances[i] = DistanceIndex{i, d}
+	}
+	slice.sort_by(sorted_distances, distance_index_less)
+
+	iterations: int
+	prev_i: int
+	prev_j: int
+	for v in sorted_distances {
+		if v.distance == 0 {
+			continue
+		}
+
+		// extract original indices
+		box_i: int = v.index % stride
+		box_j: int = v.index / stride
+
+		// skip opposite order of indices (after i--j, skip j--i)
+		// (assumes that each distance only comes up once...)
+		// TODO: check this assumption on dataset
+		if box_i == prev_j && box_j == prev_i {
+			continue
+		}
+		prev_i = box_i
+		prev_j = box_j
+
+		fmt.println("----")
+
+		// fmt.println(data.boxes[box_i], data.boxes[box_j], box_i, box_j)
+
+		// update circuits
+		// each circuit is a Maybe ptr to a dynamic array containing all
+		// indexes that are contained in the circuit
+		circuit_i, i_ok := circuits[box_i];assert(i_ok)
+		circuit_j, j_ok := circuits[box_j];assert(j_ok)
+		new_circuit_i: ^[dynamic]int = nil
+		new_circuit_j: ^[dynamic]int = nil
+		if circuit_i == nil {
+			if circuit_j == nil {
+				// both do not have circuits
+				circuit := make([dynamic]int)
+				ptr := new([dynamic]int)
+				append_elems(&circuit, box_i, box_j)
+				fmt.printfln("new circuit: %v %p ptr: %p", &circuit, &circuit, ptr)
+				new_circuit_i = &circuit
+				new_circuit_j = &circuit
+			} else {
+				// j has circuit, i does not
+				append_elem(circuit_j, box_i)
+				new_circuit_i = circuit_j
+				new_circuit_j = circuit_j
+			}
+		} else {
+			if circuit_j == nil {
+				// i has circuit, j does not
+				append_elem(circuit_i, box_j)
+				new_circuit_i = circuit_i
+				new_circuit_j = circuit_i
+			} else {
+				// both have existing circuits
+				if circuit_i == circuit_j {
+					// same circuit, no change needed
+					new_circuit_i = circuit_i
+					new_circuit_j = circuit_j
+				} else {
+					// different circuits, merge j into i
+					combined := circuit_i
+					for j in circuit_j {
+						append_elem(combined, j)
+					}
+					delete_dynamic_array(circuit_j^)
+					new_circuit_i = combined
+					new_circuit_j = combined
+				}
+			}
+		}
+		circuits[box_i] = new_circuit_i
+		circuits[box_j] = new_circuit_j
+
+		// vis
+		vis_circuits(circuits, data.boxes[:])
+
+		iterations += 1
+		if iterations >= 10 {
+			break
+		}
+	}
+
+	for key in circuits {
+		fmt.printfln("%v: %v", key, circuits[key])
+	}
+
+	return result
+}
+
+part2 :: proc(input: []byte) -> int {
+	result: int
+
+	return result
+}
+
+main :: proc() {
+	filename := "example.txt"
+	if len(os.args) == 2 {
+		filename = os.args[1]
+	}
+	input, err := os.read_entire_file_or_err(filename)
+	if err != nil {
+		fmt.eprintfln("Error reading file '%s': %v", filename, err)
+		os.exit(1)
+	}
+	{
+		result := part1(input)
+		fmt.println(result)
+	}
+	{
+		result := part2(input)
+		fmt.println(result)
+	}
+}
+
