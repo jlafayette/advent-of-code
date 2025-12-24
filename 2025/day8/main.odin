@@ -71,8 +71,6 @@ circuit_ptr_less :: proc(i, j: ^[dynamic]int) -> bool {
 }
 
 part1 :: proc(input: []byte, pair_count: int) -> int {
-	result: int
-
 	data := parse(input)
 
 	circuits := make_map_cap(map[int]^[dynamic]int, len(data.boxes))
@@ -246,9 +244,131 @@ part1 :: proc(input: []byte, pair_count: int) -> int {
 }
 
 part2 :: proc(input: []byte) -> int {
-	result: int
 
-	return result
+	data := parse(input)
+
+	circuits := make_map_cap(map[int]^[dynamic]int, len(data.boxes))
+	for pos, i in data.boxes {
+		circuits[i] = nil
+	}
+
+	stride := len(data.boxes)
+	distances := make([]int, stride * stride)
+	for p1, i in data.boxes {
+		for p2, j in data.boxes {
+			index := stride * j + i
+			distances[index] = distance(p1, p2)
+		}
+	}
+
+	// stores distance and index into distances slice
+	// this index can be unpacked into i and j, which
+	// are indexes into the original circuits map value and
+	// the indexes into data.boxes
+	sorted_distances := make([]DistanceIndex, len(distances))
+	for d, i in distances {
+		sorted_distances[i] = DistanceIndex{i, d}
+	}
+	slice.sort_by(sorted_distances, distance_index_less)
+
+	prev_i: int
+	prev_j: int
+	last_box_indexes: [2]int
+	for v in sorted_distances {
+		if v.distance == 0 {
+			continue
+		}
+
+		// extract original indices
+		box_i: int = v.index % stride
+		box_j: int = v.index / stride
+
+		// skip opposite order of indices (after i--j, skip j--i)
+		// (assumes that each distance only comes up once...)
+		// TODO: check this assumption on dataset
+		if box_i == prev_j && box_j == prev_i {
+			continue
+		}
+		prev_i = box_i
+		prev_j = box_j
+
+		// update circuits
+		// each circuit is a Maybe ptr to a dynamic array containing all
+		// indexes that are contained in the circuit
+		circuit_i, i_ok := circuits[box_i];assert(i_ok)
+		circuit_j, j_ok := circuits[box_j];assert(j_ok)
+		if circuit_i == nil {
+			if circuit_j == nil {
+				// both do not have circuits
+				ptr := new([dynamic]int)
+				ptr^ = make([dynamic]int)
+				append_elems(ptr, box_i, box_j)
+				circuits[box_i] = ptr
+				circuits[box_j] = ptr
+			} else {
+				// j has circuit, i does not
+				append_elem(circuit_j, box_i)
+				circuits[box_i] = circuit_j
+				circuits[box_j] = circuit_j
+				if len(circuit_j) == len(data.boxes) {
+					last_box_indexes = {box_i, box_j}
+					break
+				}
+			}
+		} else {
+			if circuit_j == nil {
+				// i has circuit, j does not
+				append_elem(circuit_i, box_j)
+				circuits[box_i] = circuit_i
+				circuits[box_j] = circuit_i
+				if len(circuit_i) == len(data.boxes) {
+					last_box_indexes = {box_i, box_j}
+					break
+				}
+			} else {
+				// both have existing circuits
+				if circuit_i == circuit_j {
+					// same circuit, no change needed
+					circuits[box_i] = circuit_i
+					circuits[box_j] = circuit_j
+				} else {
+					// different circuits, merge j into i
+					combined := circuit_i
+					for j in circuit_j {
+						append_elem(combined, j)
+					}
+
+					// find all things pointed at circuit_j and switch
+					// them to circuit_i
+					for j in circuit_j {
+						circuits[j] = combined
+					}
+					delete_dynamic_array(circuit_j^)
+
+					circuits[box_i] = combined
+					circuits[box_j] = combined
+					if len(combined) == len(data.boxes) {
+						last_box_indexes = {box_i, box_j}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// sanity checks
+	for key in circuits {
+		c, found := circuits[key]
+		assert(found)
+		if c != nil {
+			slice_contains_key := slice.contains(c[:], key)
+			assert(slice_contains_key)
+		}
+	}
+	pos1 := data.boxes[last_box_indexes[0]]
+	pos2 := data.boxes[last_box_indexes[1]]
+
+	return pos1.x * pos2.x
 }
 
 main :: proc() {
