@@ -113,25 +113,29 @@ vis_circuits :: proc(m: map[int]^[dynamic]int, boxes: [][3]int) {
 	}
 }
 
-part1 :: proc(input: []byte) -> int {
+circuit_ptr_less :: proc(i, j: ^[dynamic]int) -> bool {
+	return len(i) < len(j)
+}
+
+part1 :: proc(input: []byte, pair_count: int) -> int {
 	result: int
 
 	data := parse(input)
 
-	bb: BoundingBox
-	for pos, i in data.boxes {
-		if i == 0 {
-			bb.min = pos
-			bb.max = pos
-		}
-		bb.min.x = min(bb.min.x, pos.x)
-		bb.min.y = min(bb.min.y, pos.y)
-		bb.min.z = min(bb.min.z, pos.z)
-		bb.max.x = max(bb.max.x, pos.x)
-		bb.max.y = max(bb.max.y, pos.y)
-		bb.max.z = max(bb.max.z, pos.z)
-	}
-	fmt.println(bb)
+	// bb: BoundingBox
+	// for pos, i in data.boxes {
+	// 	if i == 0 {
+	// 		bb.min = pos
+	// 		bb.max = pos
+	// 	}
+	// 	bb.min.x = min(bb.min.x, pos.x)
+	// 	bb.min.y = min(bb.min.y, pos.y)
+	// 	bb.min.z = min(bb.min.z, pos.z)
+	// 	bb.max.x = max(bb.max.x, pos.x)
+	// 	bb.max.y = max(bb.max.y, pos.y)
+	// 	bb.max.z = max(bb.max.z, pos.z)
+	// }
+	// fmt.println(bb)
 
 	circuits := make_map_cap(map[int]^[dynamic]int, len(data.boxes))
 	for pos, i in data.boxes {
@@ -158,6 +162,7 @@ part1 :: proc(input: []byte) -> int {
 	slice.sort_by(sorted_distances, distance_index_less)
 
 	iterations: int
+	appends: int
 	prev_i: int
 	prev_j: int
 	for v in sorted_distances {
@@ -178,9 +183,8 @@ part1 :: proc(input: []byte) -> int {
 		prev_i = box_i
 		prev_j = box_j
 
-		fmt.println("----")
-
-		// fmt.println(data.boxes[box_i], data.boxes[box_j], box_i, box_j)
+		fmt.println("----", iterations, box_i, box_j, appends)
+		// fmt.println("    ", data.boxes[box_i], data.boxes[box_j], box_i, box_j)
 
 		// update circuits
 		// each circuit is a Maybe ptr to a dynamic array containing all
@@ -192,22 +196,37 @@ part1 :: proc(input: []byte) -> int {
 		if circuit_i == nil {
 			if circuit_j == nil {
 				// both do not have circuits
-				circuit := make([dynamic]int)
 				ptr := new([dynamic]int)
-				append_elems(&circuit, box_i, box_j)
-				fmt.printfln("new circuit: %v %p ptr: %p", &circuit, &circuit, ptr)
-				new_circuit_i = &circuit
-				new_circuit_j = &circuit
+				ptr^ = make([dynamic]int)
+				_, err := append_elems(ptr, box_i, box_j)
+				if err != nil {
+					fmt.eprintfln("error allocating: %v", err)
+					os.exit(1)
+				}
+				appends += 2
+				// fmt.printfln("new circuit: %v %p ptr: %p", ptr^, ptr^, ptr)
+				new_circuit_i = ptr
+				new_circuit_j = ptr
 			} else {
 				// j has circuit, i does not
-				append_elem(circuit_j, box_i)
+				_, err := append_elem(circuit_j, box_i)
+				if err != nil {
+					fmt.eprintfln("error allocating: %v", err)
+					os.exit(1)
+				}
+				appends += 1
 				new_circuit_i = circuit_j
 				new_circuit_j = circuit_j
 			}
 		} else {
 			if circuit_j == nil {
 				// i has circuit, j does not
-				append_elem(circuit_i, box_j)
+				_, err := append_elem(circuit_i, box_j)
+				if err != nil {
+					fmt.eprintfln("error allocating: %v", err)
+					os.exit(1)
+				}
+				appends += 1
 				new_circuit_i = circuit_i
 				new_circuit_j = circuit_i
 			} else {
@@ -220,9 +239,21 @@ part1 :: proc(input: []byte) -> int {
 					// different circuits, merge j into i
 					combined := circuit_i
 					for j in circuit_j {
-						append_elem(combined, j)
+						_, err := append_elem(combined, j)
+						if err != nil {
+							fmt.eprintfln("error allocating: %v", err)
+							os.exit(1)
+						}
+						appends += 1
+					}
+
+					// find all things pointed at circuit_j and switch
+					// them to circuit_i
+					for j in circuit_j {
+						circuits[j] = combined
 					}
 					delete_dynamic_array(circuit_j^)
+
 					new_circuit_i = combined
 					new_circuit_j = combined
 				}
@@ -232,19 +263,55 @@ part1 :: proc(input: []byte) -> int {
 		circuits[box_j] = new_circuit_j
 
 		// vis
-		vis_circuits(circuits, data.boxes[:])
+		// vis_circuits(circuits, data.boxes[:])
 
 		iterations += 1
-		if iterations >= 10 {
+		if iterations >= pair_count {
 			break
 		}
 	}
 
+	// for key in circuits {
+	// 	fmt.printfln("%v: %v", key, circuits[key])
+	// }
+
+	// sanity checks
 	for key in circuits {
-		fmt.printfln("%v: %v", key, circuits[key])
+		c, found := circuits[key]
+		assert(found)
+		if c != nil {
+			slice_contains_key := slice.contains(c[:], key)
+			assert(slice_contains_key)
+		}
 	}
 
-	return result
+	// first the top 3
+	circuits_deduplicated: [dynamic]^[dynamic]int
+	skip: [dynamic]int
+	for key in circuits {
+		if slice.contains(skip[:], key) {
+			continue
+		}
+		c := circuits[key]
+		if c != nil {
+			for i in c {
+				append_elem(&skip, i)
+			}
+			append_elem(&circuits_deduplicated, c)
+		}
+	}
+	slice.reverse_sort_by(circuits_deduplicated[:], circuit_ptr_less)
+	fmt.println("------")
+	for c in circuits_deduplicated {
+		fmt.printfln("%v", c)
+	}
+	fmt.println("------")
+	assert(len(circuits_deduplicated) >= 3)
+	a := len(circuits_deduplicated[0])
+	b := len(circuits_deduplicated[1])
+	c := len(circuits_deduplicated[2])
+
+	return a * b * c
 }
 
 part2 :: proc(input: []byte) -> int {
@@ -255,8 +322,10 @@ part2 :: proc(input: []byte) -> int {
 
 main :: proc() {
 	filename := "example.txt"
+	pair_count := 10
 	if len(os.args) == 2 {
 		filename = os.args[1]
+		pair_count = 1000
 	}
 	input, err := os.read_entire_file_or_err(filename)
 	if err != nil {
@@ -264,7 +333,9 @@ main :: proc() {
 		os.exit(1)
 	}
 	{
-		result := part1(input)
+		result := part1(input, pair_count)
+		// 3244032 is too high
+		assert(result < 3244032, "3244032 is too high")
 		fmt.println(result)
 	}
 	{
