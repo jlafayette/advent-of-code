@@ -50,11 +50,6 @@ parse :: proc(input: []byte) -> Data {
 	return data
 }
 
-BoundingBox :: struct {
-	min: [3]int,
-	max: [3]int,
-}
-
 distance :: proc(p1, p2: [3]int) -> int {
 	x := abs(p1.x - p2.x)
 	y := abs(p1.y - p2.y)
@@ -66,51 +61,9 @@ DistanceIndex :: struct {
 	index:    int,
 	distance: int,
 }
+
 distance_index_less :: proc(i, j: DistanceIndex) -> bool {
 	return i.distance < j.distance
-}
-
-Circuits :: struct {
-	m: map[int]Maybe(^[dynamic]int),
-}
-
-Vis :: struct {
-	count:     int,
-	indexes:   []int,
-	positions: []int,
-}
-
-vis_top_3 :: proc(m: map[int]^[dynamic]int) -> [3]Vis {
-	r: [3]Vis
-
-	counts: [3]int
-	for key in m {
-		v := m[key]
-		if v == nil {
-			continue
-		}
-		// TODO
-	}
-
-	return r
-}
-
-VisPrint :: struct {
-	index:   int,
-	pos:     [3]int,
-	circuit: ^[dynamic]int,
-}
-
-vis_circuits :: proc(m: map[int]^[dynamic]int, boxes: [][3]int) {
-	vis_array := make([]VisPrint, len(m))
-	for key in m {
-		pos := boxes[key]
-		circuit := m[key]
-		vis_array[key] = VisPrint{key, pos, circuit}
-	}
-	for vis in vis_array {
-		fmt.printfln("%v", vis)
-	}
 }
 
 circuit_ptr_less :: proc(i, j: ^[dynamic]int) -> bool {
@@ -121,21 +74,6 @@ part1 :: proc(input: []byte, pair_count: int) -> int {
 	result: int
 
 	data := parse(input)
-
-	// bb: BoundingBox
-	// for pos, i in data.boxes {
-	// 	if i == 0 {
-	// 		bb.min = pos
-	// 		bb.max = pos
-	// 	}
-	// 	bb.min.x = min(bb.min.x, pos.x)
-	// 	bb.min.y = min(bb.min.y, pos.y)
-	// 	bb.min.z = min(bb.min.z, pos.z)
-	// 	bb.max.x = max(bb.max.x, pos.x)
-	// 	bb.max.y = max(bb.max.y, pos.y)
-	// 	bb.max.z = max(bb.max.z, pos.z)
-	// }
-	// fmt.println(bb)
 
 	circuits := make_map_cap(map[int]^[dynamic]int, len(data.boxes))
 	for pos, i in data.boxes {
@@ -183,7 +121,7 @@ part1 :: proc(input: []byte, pair_count: int) -> int {
 		prev_i = box_i
 		prev_j = box_j
 
-		fmt.println("----", iterations, box_i, box_j, appends)
+		// fmt.println("----", iterations, box_i, box_j, appends)
 		// fmt.println("    ", data.boxes[box_i], data.boxes[box_j], box_i, box_j)
 
 		// update circuits
@@ -262,18 +200,11 @@ part1 :: proc(input: []byte, pair_count: int) -> int {
 		circuits[box_i] = new_circuit_i
 		circuits[box_j] = new_circuit_j
 
-		// vis
-		// vis_circuits(circuits, data.boxes[:])
-
 		iterations += 1
 		if iterations >= pair_count {
 			break
 		}
 	}
-
-	// for key in circuits {
-	// 	fmt.printfln("%v: %v", key, circuits[key])
-	// }
 
 	// sanity checks
 	for key in circuits {
@@ -301,11 +232,11 @@ part1 :: proc(input: []byte, pair_count: int) -> int {
 		}
 	}
 	slice.reverse_sort_by(circuits_deduplicated[:], circuit_ptr_less)
-	fmt.println("------")
-	for c in circuits_deduplicated {
-		fmt.printfln("%v", c)
-	}
-	fmt.println("------")
+	// fmt.println("------")
+	// for c in circuits_deduplicated {
+	// 	fmt.printfln("%v", c)
+	// }
+	// fmt.println("------")
 	assert(len(circuits_deduplicated) >= 3)
 	a := len(circuits_deduplicated[0])
 	b := len(circuits_deduplicated[1])
